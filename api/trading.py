@@ -75,11 +75,13 @@ async def get_price(pair: str = Query("BTC/USDT")):
 @router.get("/chart")
 async def get_chart(
     pair: str = Query("BTC/USDT"),
-    timeframe: str = Query("1m"),
+    timeframe: Optional[str] = Query(None),
+    interval: Optional[str] = Query(None),
     limit: int = Query(40, le=100)
 ):
-    candles = await get_chart_data(pair, timeframe=timeframe, limit=limit)
-    return {"pair": pair.upper(), "candles": candles}
+    tf = timeframe or interval or "1m"
+    candles = await get_chart_data(pair, timeframe=tf, limit=limit)
+    return {"pair": pair.upper(), "timeframe": tf, "candles": candles}
 
 @router.post("/binary/bet")
 async def place_binary_bet(
