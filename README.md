@@ -11,7 +11,21 @@
 
 ---
 
-## 📸 Обзор возможностей
+## 📸 Обзор интерфейса & Возможностей
+
+<div align="center">
+
+### 👑 Панель управления платформой (GOD Mode Admin Panel)
+
+| 📊 Дашборд и Аналитика | 🔑 HD Master-Wallet & Ключи | 📢 Массовые рассылки (Broadcast) |
+|:---:|:---:|:---:|
+| <img src="docs/screenshots/01_admin_dashboard.png" width="280" alt="Дашборд администратора" /> | <img src="docs/screenshots/02_admin_hd_wallet.png" width="280" alt="HD Master-Wallet" /> | <img src="docs/screenshots/03_admin_broadcast.png" width="280" alt="Массовые рассылки" /> |
+
+</div>
+
+---
+
+## 🏗 Архитектура платформы
 
 ```
                                   ┌────────────────────────┐
