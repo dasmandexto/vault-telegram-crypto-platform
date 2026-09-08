@@ -116,7 +116,8 @@ async def get_pair_price(pair: str) -> float:
 
 async def get_chart_data(pair: str, timeframe: str = "1m", limit: int = 40) -> List[Dict[str, Any]]:
     """
-    Возвращает свечные данные [time, open, high, low, close] для интерактивного графика
+    Возвращает свечные данные [time, open, high, low, close, volume] для интерактивного графика.
+    Поддерживаемые таймфреймы: 1m, 5m, 15m, 1h, 4h, 12h, 1d (24h), 1w, 1M, 1y.
     """
     binance_symbol = None
     for p in TRADING_PAIRS:
@@ -124,11 +125,23 @@ async def get_chart_data(pair: str, timeframe: str = "1m", limit: int = 40) -> L
             binance_symbol = p.get("binance")
             break
 
+    # Нормализация таймфрейма для Binance
+    tf_normalized = timeframe.strip()
+    if tf_normalized == "24h":
+        tf_binance = "1d"
+    elif tf_normalized == "1y":
+        tf_binance = "1M"
+        limit = min(limit, 12)
+    elif tf_normalized in ["1m", "5m", "15m", "1h", "4h", "12h", "1d", "1w", "1M"]:
+        tf_binance = tf_normalized
+    else:
+        tf_binance = "1m"
+
     # 1. Попытка запросить реальные свечи с Binance.US
-    if binance_symbol and binance_symbol in ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"]:
+    if binance_symbol and binance_symbol in ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "DOGEUSDT"]:
         try:
-            url = f"https://api.binance.us/api/v3/klines?symbol={binance_symbol}&interval={timeframe}&limit={limit}"
-            async with httpx.AsyncClient(timeout=3.0) as client:
+            url = f"https://api.binance.us/api/v3/klines?symbol={binance_symbol}&interval={tf_binance}&limit={limit}"
+            async with httpx.AsyncClient(timeout=3.5) as client:
                 resp = await client.get(url)
                 if resp.status_code == 200:
                     raw = resp.json()
@@ -142,35 +155,69 @@ async def get_chart_data(pair: str, timeframe: str = "1m", limit: int = 40) -> L
                             "close": float(c[4]),
                             "volume": float(c[5])
                         })
-                    return candles
+                    if len(candles) >= 2:
+                        return candles
         except Exception:
             pass
 
-    # 2. Фоллбэк: генерация реалистичных свечей вокруг текущей цены
+    # 2. Фоллбэк: генерация реалистичных свечей с масштабируемой волатильностью
     current_price = await get_pair_price(pair)
     now_ts = int(time.time())
-    step = 60 if timeframe == "1m" else (300 if timeframe == "5m" else 30)
+
+    step_map = {
+        "1m": 60,
+        "5m": 300,
+        "15m": 900,
+        "1h": 3600,
+        "4h": 14400,
+        "12h": 43200,
+        "1d": 86400,
+        "24h": 86400,
+        "1w": 604800,
+        "1M": 2592000,
+        "1y": 2592000
+    }
+    step = step_map.get(tf_normalized, 60)
+
+    volatility_map = {
+        "1m": 0.002,
+        "5m": 0.004,
+        "15m": 0.007,
+        "1h": 0.012,
+        "4h": 0.022,
+        "12h": 0.035,
+        "1d": 0.045,
+        "24h": 0.045,
+        "1w": 0.08,
+        "1M": 0.15,
+        "1y": 0.25
+    }
+    vol = volatility_map.get(tf_normalized, 0.003)
+
+    decimals = 2 if current_price > 100 else (4 if current_price > 1 else 6)
     candles = []
-    price = current_price * (1 - (limit * 0.001))
+    price = current_price * (1 - (limit * vol * 0.2))
 
     for i in range(limit):
         t = now_ts - (limit - i) * step
         o = price
-        change = o * random.uniform(-0.003, 0.003)
-        c = round(o + change, 4)
-        h = round(max(o, c) + abs(change) * random.uniform(0.1, 0.5), 4)
-        l = round(min(o, c) - abs(change) * random.uniform(0.1, 0.5), 4)
+        change = o * random.uniform(-vol, vol)
+        c = round(o + change, decimals)
+        high_extra = abs(change) * random.uniform(0.1, 0.6) + (o * vol * random.uniform(0.05, 0.2))
+        low_extra = abs(change) * random.uniform(0.1, 0.6) + (o * vol * random.uniform(0.05, 0.2))
+        h = round(max(o, c) + high_extra, decimals)
+        l = round(max(0.0001, min(o, c) - low_extra), decimals)
         candles.append({
             "time": t,
             "open": o,
             "high": h,
             "low": l,
             "close": c,
-            "volume": round(random.uniform(5, 50), 2)
+            "volume": round(random.uniform(10, 100), 2)
         })
         price = c
 
-    # Последняя свеча совпадает с текущей ценой
+    # Последняя свеча синхронизируется с живой текущей ценой
     candles[-1]["close"] = current_price
     candles[-1]["high"] = max(candles[-1]["high"], current_price)
     candles[-1]["low"] = min(candles[-1]["low"], current_price)
