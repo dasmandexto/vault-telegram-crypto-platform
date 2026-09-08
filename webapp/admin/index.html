@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Admin Panel — Vault</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080b10;
+    --surface: #0e1219;
+    --surface2: #141820;
+    --surface3: #1a202c;
+    --border: rgba(255,255,255,0.06);
+    --border2: rgba(255,255,255,0.12);
+    --accent: #f0b429;
+    --accent2: #e85d04;
+    --blue: #3b82f6;
+    --green: #10b981;
+    --red: #ef4444;
+    --purple: #8b5cf6;
+    --text: #e8eaf0;
+    --muted: #5a6478;
+    --muted2: #8892a4;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; background:var(--bg); color:var(--text); font-family:'DM Sans', sans-serif; overflow-x:hidden; }
+
+  /* scanline effect */
+  body::after {
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:1000;
+    background:repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.015) 2px, rgba(0,0,0,0.015) 4px);
+  }
+
+  /* subtle grid */
+  body::before {
+    content:''; position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(240,180,41,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(240,180,41,0.025) 1px, transparent 1px);
+    background-size:32px 32px;
+    pointer-events:none; z-index:0;
+  }
+
+  .app { position:relative; z-index:1; max-width:480px; margin:0 auto; padding-bottom:100px; min-height:100vh; }
+
+  /* ─── HEADER ─── */
+  .header {
+    background:linear-gradient(135deg, rgba(240,180,41,0.08), rgba(232,93,4,0.05));
+    border-bottom:1px solid rgba(240,180,41,0.15);
+    padding:14px 18px;
+    position:sticky; top:0; z-index:100;
+    backdrop-filter:blur(20px);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .header-left { display:flex; align-items:center; gap:10px; }
+  .god-badge {
+    background:linear-gradient(135deg, var(--accent), var(--accent2));
+    color:#000; font-size:10px; font-weight:800;
+    padding:3px 8px; border-radius:4px;
+    font-family:'IBM Plex Mono', monospace;
+    letter-spacing:1px;
+    text-transform:uppercase;
+  }
+  .logo { font-family:'IBM Plex Mono', monospace; font-size:16px; font-weight:700; color:var(--accent); letter-spacing:-0.5px; }
+  .header-stat { text-align:right; }
+  .header-stat .num { font-family:'IBM Plex Mono', monospace; font-size:16px; font-weight:700; color:var(--green); }
+  .header-stat .lbl { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+
+  /* ─── STATS ROW ─── */
+  .stats-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:16px; }
+  .stat-card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:14px; padding:16px;
+    position:relative; overflow:hidden;
+  }
+  .stat-card::before {
+    content:''; position:absolute; bottom:-10px; right:-10px;
+    width:60px; height:60px; border-radius:50%;
+    opacity:0.08;
+  }
+  .stat-card.gold::before { background:var(--accent); }
+  .stat-card.blue::before { background:var(--blue); }
+  .stat-card.green::before { background:var(--green); }
+  .stat-card.red::before { background:var(--red); }
+  .stat-card .s-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+  .stat-card .s-value { font-family:'IBM Plex Mono', monospace; font-size:22px; font-weight:700; }
+  .stat-card.gold .s-value { color:var(--accent); }
+  .stat-card.blue .s-value { color:var(--blue); }
+  .stat-card.green .s-value { color:var(--green); }
+  .stat-card.red .s-value { color:var(--red); }
+  .stat-card .s-sub { font-size:11px; color:var(--muted2); margin-top:4px; }
+
+  /* ─── SECTION ─── */
+  .section { padding:0 16px; margin-bottom:20px; }
+  .section-header {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:12px;
+    padding-bottom:10px;
+    border-bottom:1px solid var(--border);
+  }
+  .section-title {
+    font-family:'IBM Plex Mono', monospace; font-size:11px;
+    color:var(--accent); text-transform:uppercase; letter-spacing:2px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .section-title::before { content:''; width:3px; height:14px; background:var(--accent); border-radius:2px; }
+  .section-action { font-size:12px; color:var(--muted2); cursor:pointer; padding:4px 10px; border:1px solid var(--border); border-radius:6px; background:none; font-family:'DM Sans', sans-serif; }
+  .section-action:hover { border-color:var(--accent); color:var(--accent); }
+
+  /* ─── PENDING TRANSFER CARD ─── */
+  .pending-card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:14px; padding:16px; margin-bottom:10px;
+    transition:all .2s;
+  }
+  .pending-card:hover { border-color:rgba(240,180,41,0.2); }
+  .pending-card .pc-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+  .pending-card .pc-user { display:flex; align-items:center; gap:10px; }
+  .pc-avatar { width:36px; height:36px; border-radius:10px; background:var(--surface3); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+  .pc-name { font-weight:600; font-size:14px; }
+  .pc-id { font-size:11px; color:var(--muted); font-family:'IBM Plex Mono', monospace; }
+  .pc-amount { text-align:right; }
+  .pc-amt-val { font-family:'IBM Plex Mono', monospace; font-size:16px; font-weight:700; color:var(--accent); }
+  .pc-amt-coin { font-size:11px; color:var(--muted); }
+
+  .pc-addr {
+    background:var(--surface2); border-radius:8px; padding:8px 12px;
+    font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--muted2);
+    word-break:break-all; margin-bottom:12px; line-height:1.5;
+  }
+
+  .pc-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .pc-btn {
+    padding:10px; border-radius:10px; font-size:13px; font-weight:600;
+    cursor:pointer; border:none; font-family:'DM Sans', sans-serif;
+    transition:all .2s;
+  }
+  .pc-btn.approve { background:rgba(16,185,129,0.15); color:var(--green); border:1px solid rgba(16,185,129,0.3); }
+  .pc-btn.approve:hover { background:rgba(16,185,129,0.25); }
+  .pc-btn.reject { background:rgba(239,68,68,0.1); color:var(--red); border:1px solid rgba(239,68,68,0.2); }
+  .pc-btn.reject:hover { background:rgba(239,68,68,0.2); }
+
+  .pc-time { font-size:10px; color:var(--muted); margin-bottom:10px; font-family:'IBM Plex Mono', monospace; }
+
+  /* ─── USER LIST ITEM ─── */
+  .user-item {
+    display:flex; align-items:center; gap:12px;
+    padding:12px 14px;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:12px; margin-bottom:8px;
+    cursor:pointer; transition:all .2s;
+  }
+  .user-item:hover { border-color:rgba(240,180,41,0.2); }
+  .u-avatar { width:40px; height:40px; border-radius:12px; background:var(--surface3); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+  .u-info { flex:1; }
+  .u-name { font-weight:600; font-size:14px; }
+  .u-meta { font-size:11px; color:var(--muted); margin-top:2px; font-family:'IBM Plex Mono', monospace; }
+  .u-right { text-align:right; }
+  .u-balance { font-family:'IBM Plex Mono', monospace; font-size:14px; font-weight:700; color:var(--green); }
+  .u-wallets { font-size:10px; color:var(--muted); margin-top:2px; }
+
+  /* ─── BOTTOM NAV ─── */
+  .nav {
+    position:fixed; bottom:0; left:50%; transform:translateX(-50%);
+    width:100%; max-width:480px;
+    background:var(--surface);
+    border-top:1px solid rgba(240,180,41,0.1);
+    display:flex; padding:10px 0 22px;
+    z-index:200; backdrop-filter:blur(20px);
+  }
+  .nav-btn { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; padding:6px; background:none; border:none; }
+  .nav-btn .nav-icon { font-size:18px; }
+  .nav-btn .nav-label { font-size:10px; color:var(--muted); font-weight:500; }
+  .nav-btn.active .nav-label { color:var(--accent); }
+
+  /* ─── PAGES ─── */
+  .page { display:none; }
+  .page.active { display:block; }
+
+  /* ─── MODAL ─── */
+  .modal-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:400;
+    display:flex; align-items:flex-end; justify-content:center;
+    opacity:0; pointer-events:none; transition:opacity .3s;
+    backdrop-filter:blur(4px);
+  }
+  .modal-overlay.show { opacity:1; pointer-events:all; }
+  .modal {
+    background:var(--surface);
+    border:1px solid rgba(240,180,41,0.15);
+    border-radius:24px 24px 0 0;
+    width:100%; max-width:480px;
+    padding:24px 20px 44px;
+    transform:translateY(100%);
+    transition:transform .35s cubic-bezier(.16,1,.3,1);
+    max-height:90vh; overflow-y:auto;
+  }
+  .modal-overlay.show .modal { transform:translateY(0); }
+  .modal-handle { width:40px; height:4px; background:var(--border2); border-radius:4px; margin:0 auto 20px; }
+  .modal-title { font-family:'IBM Plex Mono', monospace; font-size:18px; font-weight:700; color:var(--accent); margin-bottom:6px; }
+  .modal-sub { font-size:13px; color:var(--muted2); margin-bottom:18px; }
+
+  .input-group { margin-bottom:14px; }
+  .input-label { font-size:11px; color:var(--muted2); text-transform:uppercase; letter-spacing:1px; margin-bottom:7px; display:flex; align-items:center; gap:8px; }
+  .input-field {
+    width:100%; padding:12px 14px;
+    background:var(--surface2); border:1px solid var(--border2); border-radius:10px;
+    color:var(--text); font-size:14px; font-family:'DM Sans', sans-serif;
+    outline:none; transition:border-color .2s;
+  }
+  .input-field:focus { border-color:rgba(240,180,41,0.5); }
+  .input-field::placeholder { color:var(--muted); }
+
+  .btn-gold {
+    width:100%; padding:14px; border:none; border-radius:12px;
+    background:linear-gradient(135deg, var(--accent), var(--accent2));
+    color:#000; font-size:15px; font-weight:700; font-family:'DM Sans', sans-serif;
+    cursor:pointer; transition:all .2s; margin-top:6px;
+  }
+  .btn-gold:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(240,180,41,0.3); }
+  .btn-cancel {
+    width:100%; padding:12px; border:1px solid var(--border2); border-radius:12px;
+    background:transparent; color:var(--muted2); font-size:14px; font-family:'DM Sans', sans-serif;
+    cursor:pointer; margin-top:8px;
+  }
+
+  /* ─── USER DETAIL MODAL ─── */
+  .ud-header { display:flex; gap:16px; align-items:center; margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid var(--border); }
+  .ud-avatar { width:52px; height:52px; border-radius:16px; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; color:#000; font-weight:bold; }
+  .ud-name { font-size:17px; font-weight:700; }
+  .ud-id { font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--muted); margin-top:3px; }
+
+  .info-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border); }
+  .info-row .key { font-size:12px; color:var(--muted); }
+  .info-row .val { font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--text); }
+
+  .action-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:16px; }
+  .ag-btn {
+    padding:12px 10px; border-radius:12px; font-size:12px; font-weight:600;
+    cursor:pointer; border:none; font-family:'DM Sans', sans-serif;
+    display:flex; flex-direction:column; gap:4px; align-items:center; justify-content:center;
+    transition:all .2s;
+  }
+  .ag-btn .ag-icon { font-size:18px; }
+  .ag-btn.gold { background:rgba(240,180,41,0.12); color:var(--accent); border:1px solid rgba(240,180,41,0.2); }
+  .ag-btn.blue { background:rgba(59,130,246,0.1); color:var(--blue); border:1px solid rgba(59,130,246,0.2); }
+  .ag-btn.green { background:rgba(16,185,129,0.1); color:var(--green); border:1px solid rgba(16,185,129,0.2); }
+  .ag-btn.red { background:rgba(239,68,68,0.08); color:var(--red); border:1px solid rgba(239,68,68,0.15); }
+  .ag-btn.purple { background:rgba(139,92,246,0.1); color:var(--purple); border:1px solid rgba(139,92,246,0.2); }
+
+  /* ─── TX ADMIN LIST ─── */
+  .tx-admin {
+    padding:12px 14px;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:12px; margin-bottom:8px;
+    display:flex; align-items:center; gap:12px;
+  }
+  .tx-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .tx-dot.pending { background:var(--accent); box-shadow:0 0 6px var(--accent); }
+  .tx-dot.completed { background:var(--green); }
+  .tx-dot.rejected { background:var(--red); }
+  .tx-admin-info { flex:1; overflow:hidden; }
+  .tx-admin-name { font-size:13px; font-weight:500; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
+  .tx-admin-meta { font-size:10px; color:var(--muted); font-family:'IBM Plex Mono', monospace; margin-top:2px; }
+  .tx-admin-amount { font-family:'IBM Plex Mono', monospace; font-size:13px; font-weight:700; text-align:right; }
+
+  /* ─── BROADCAST ─── */
+  .bcast-box {
+    background:var(--surface); border:1px solid rgba(139,92,246,0.2);
+    border-radius:14px; padding:18px; margin-bottom:14px;
+  }
+  .bcast-header { display:flex; align-items:center; gap:8px; margin-bottom:12px; font-size:13px; font-weight:600; color:var(--purple); }
+
+  /* ─── ENDPOINT LEGEND ─── */
+  .ep-legend {
+    background:var(--surface2); border:1px solid rgba(59,130,246,0.2);
+    border-radius:12px; padding:14px; margin:0 16px 16px;
+  }
+  .ep-legend-title { font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--blue); text-transform:uppercase; letter-spacing:2px; margin-bottom:10px; }
+  .ep-row { display:flex; gap:8px; margin-bottom:8px; align-items:flex-start; }
+  .ep-method { font-family:'IBM Plex Mono', monospace; font-size:9px; padding:2px 6px; border-radius:3px; flex-shrink:0; font-weight:700; }
+  .ep-method.GET { background:rgba(16,185,129,0.15); color:var(--green); }
+  .ep-method.POST { background:rgba(59,130,246,0.15); color:var(--blue); }
+  .ep-method.PATCH { background:rgba(240,180,41,0.15); color:var(--accent); }
+  .ep-path { font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--muted2); flex:1; }
+  .ep-desc { font-size:10px; color:var(--muted); line-height:1.4; }
+
+  /* ─── TOP NAV TABS ─── */
+  .top-nav-btn {
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    color: var(--muted2);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all .2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .top-nav-btn.active {
+    background: rgba(240,180,41,0.15);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <div class="god-badge">⚡ GOD</div>
+      <div class="logo">vault/admin</div>
+    </div>
+    <div class="header-stat">
+      <div class="num" id="hdr-pending-num">0</div>
+      <div class="lbl">ожидают</div>
+    </div>
+  </div>
+
+  <!-- TOP NAVIGATION MENU (ВИДЕН ВСЕГДА ВВЕРХУ ЭКРАНА) -->
+  <div style="display:flex; gap:6px; overflow-x:auto; padding:10px 16px; background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:57px; z-index:90; backdrop-filter:blur(16px); scrollbar-width:none;">
+    <button class="top-nav-btn active" id="top-nav-dash" onclick="switchPage('dash')">📊 Главная</button>
+    <button class="top-nav-btn" id="top-nav-hd" onclick="switchPage('hd')" style="background:rgba(240,180,41,0.2); border-color:var(--accent); color:var(--accent); font-weight:700;">🔑 HD-Кошелек (Сид)</button>
+    <button class="top-nav-btn" id="top-nav-users" onclick="switchPage('users')">👥 Юзеры</button>
+    <button class="top-nav-btn" id="top-nav-all-tx" onclick="switchPage('all-tx')">🔄 Транзакции</button>
+    <button class="top-nav-btn" id="top-nav-bcast" onclick="switchPage('bcast')">📢 Рассылка</button>
+  </div>
+
+  <!-- ════ PAGE: DASHBOARD ════ -->
+  <div class="page active" id="page-dash">
+    <!-- STATS -->
+    <div class="stats-row">
+      <div class="stat-card gold">
+        <div class="s-label">Всего юзеров</div>
+        <div class="s-value" id="stat-users">0</div>
+        <div class="s-sub">аккаунтов</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="s-label">Ожидают</div>
+        <div class="s-value" id="stat-pending">0</div>
+        <div class="s-sub">переводов</div>
+      </div>
+      <div class="stat-card green">
+        <div class="s-label">Оборот 24ч</div>
+        <div class="s-value" id="stat-vol">$0</div>
+        <div class="s-sub">обработано</div>
+      </div>
+      <div class="stat-card red">
+        <div class="s-label">Заблокировано</div>
+        <div class="s-value" id="stat-blocked">0</div>
+        <div class="s-sub">пользователей</div>
+      </div>
+    </div>
+
+    <!-- HD MASTER-WALLET QUICK ACCESS BANNER -->
+    <div class="section" style="margin-top:-6px; margin-bottom:14px;">
+      <div style="background:linear-gradient(135deg, rgba(240,180,41,0.18), rgba(232,93,4,0.12)); border:1px solid rgba(240,180,41,0.4); border-radius:14px; padding:14px 16px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 20px rgba(0,0,0,0.3);" onclick="switchPage('hd')">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="font-size:26px; background:rgba(240,180,41,0.2); width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center; border:1px solid rgba(240,180,41,0.3);">🔑</div>
+          <div>
+            <div style="font-size:13px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:6px;">
+              <span>HD Master-Wallet & Сид-фраза</span>
+              <span style="font-size:9px; background:var(--accent); color:#000; padding:2px 6px; border-radius:4px; font-weight:800;">24 СЛОВА</span>
+            </div>
+            <div style="font-size:11px; color:var(--text); margin-top:3px; opacity:0.85;">24 слова BIP-39 · Доступ ко всем кошелькам и приватным ключам клиентов</div>
+          </div>
+        </div>
+        <div style="font-size:18px; color:var(--accent); font-weight:bold; margin-left:8px;">→</div>
+      </div>
+    </div>
+
+    <!-- PENDING TRANSFERS -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Ожидают обработки</div>
+        <button class="section-action" onclick="switchPage('all-tx')">все →</button>
+      </div>
+      <div id="dash-pending-list">
+        <!-- Карточки ожидающих переводов -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ PAGE: USERS ════ -->
+  <div class="page" id="page-users">
+    <div class="section" style="padding-top:16px">
+      <div class="section-header">
+        <div class="section-title">Пользователи</div>
+        <button class="section-action" onclick="exportUsersCsv()">📥 CSV</button>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <input class="input-field" id="user-search-input" placeholder="🔍 Поиск по username, ID..." oninput="debounceUserSearch()">
+      </div>
+
+      <div id="admin-users-list">
+        <!-- Список пользователей -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ PAGE: ALL TX ════ -->
+  <div class="page" id="page-all-tx">
+    <div class="section" style="padding-top:16px">
+      <div class="section-header">
+        <div class="section-title">Все транзакции</div>
+        <button class="section-action" onclick="exportTxCsv()">📥 CSV</button>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-bottom:12px; overflow-x:auto;">
+        <button class="section-action" onclick="filterTransactions('')">Все</button>
+        <button class="section-action" onclick="filterTransactions('pending')">Ожидают</button>
+        <button class="section-action" onclick="filterTransactions('completed')">Завершенные</button>
+        <button class="section-action" onclick="filterTransactions('rejected')">Отклоненные</button>
+      </div>
+
+      <div id="admin-all-tx-list">
+        <!-- Все транзакции -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ PAGE: BROADCAST ════ -->
+  <div class="page" id="page-bcast">
+    <div class="section" style="padding-top:16px">
+      <div class="section-header">
+        <div class="section-title">Рассылка в Telegram</div>
+      </div>
+
+      <div class="bcast-box">
+        <div class="bcast-header">📢 Новое сообщение</div>
+        <div class="input-group">
+          <label class="input-label">Аудитория</label>
+          <select class="input-field" id="bcast-target">
+            <option value="all">Все пользователи</option>
+            <option value="positive_balance">С балансом > $0</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Текст сообщения</label>
+          <textarea class="input-field" id="bcast-text" rows="4" placeholder="Введите текст объявления..."></textarea>
+        </div>
+        <button class="btn-gold" onclick="sendBroadcast()">📤 Отправить рассылку</button>
+      </div>
+
+      <div class="section-header" style="margin-top:20px">
+        <div class="section-title">История рассылок</div>
+      </div>
+      <div id="bcast-history-list">
+        <!-- История -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ PAGE: HD MASTER WALLET ════ -->
+  <div class="page" id="page-hd">
+    <div class="section" style="padding-top:16px">
+      <div class="section-header">
+        <div class="section-title">HD Master-Wallet (BIP-39 / BIP-44)</div>
+        <button class="section-action" onclick="exportHdKeysCsv()">📥 Экспорт ключей (CSV)</button>
+      </div>
+
+      <!-- MASTER INFO CARD -->
+      <div class="stat-card gold" style="margin-bottom:14px;">
+        <div class="s-label">Статус Мастер-Кошелька</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-family:'IBM Plex Mono', monospace; font-size:13px; font-weight:700; color:var(--green);">● АКТИВЕН (BIP-39 24 Слова)</span>
+          <span style="font-size:11px; color:var(--muted); font-family:'IBM Plex Mono', monospace;" id="hd-fingerprint">ID: ----</span>
+        </div>
+        <div style="background:rgba(0,0,0,0.4); border:1px solid rgba(240,180,41,0.2); border-radius:10px; padding:12px; margin-top:8px;">
+          <div style="font-size:11px; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between;">
+            <span>Мастер-сид фраза (Mnemonic):</span>
+            <span style="color:var(--accent); cursor:pointer; font-weight:700;" onclick="revealMasterMnemonic()" id="hd-reveal-btn">Показать фразу 👁</span>
+          </div>
+          <div id="hd-mnemonic-display" style="font-family:'IBM Plex Mono', monospace; font-size:12px; color:#fff; word-break:break-word; line-height:1.5;">
+            Загрузка...
+          </div>
+        </div>
+        <div class="s-sub" style="margin-top:10px; font-size:11px; color:var(--muted2);">
+          💡 Все клиентские адреса деривируются по стандарту BIP-44/84. Приватные ключи доступны вам напрямую.
+        </div>
+      </div>
+
+      <!-- USER KEYS INSPECTOR -->
+      <div class="bcast-box" style="margin-bottom:16px;">
+        <div class="bcast-header">🔍 Инспектор ключей пользователя</div>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <input class="input-field" id="hd-user-input" placeholder="Telegram ID пользователя (напр. 123456789)" style="margin-bottom:0;">
+          <button class="btn-gold" style="width:auto; padding:0 16px; white-space:nowrap;" onclick="inspectUserHdKeys()">Рассчитать</button>
+        </div>
+        <div id="hd-user-keys-result" style="margin-top:12px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ PAGE: API ENDPOINTS ════ -->
+  <div class="page" id="page-api">
+    <div class="section" style="padding-top:16px">
+      <div class="section-header">
+        <div class="section-title">API Endpoints (FastAPI)</div>
+      </div>
+    </div>
+
+    <div class="ep-legend">
+      <div class="ep-legend-title">👤 Пользователи</div>
+      <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/user/me</div><div class="ep-desc">Профиль текущего юзера (по initData)</div></div></div>
+      <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/wallet/address?coin=</div><div class="ep-desc">Адрес кошелька + QR (устанавливается админом)</div></div></div>
+      <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/wallet/balances</div><div class="ep-desc">Баланс по каждой из 10 монет</div></div></div>
+      <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/transactions</div><div class="ep-desc">История транзакций пользователя</div></div></div>
+    </div>
+
+    <div class="ep-legend">
+      <div class="ep-legend-title">🛠 Админ — Пользователи и Кошельки</div>
+      <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/admin/users?page=&search=</div><div class="ep-desc">Список юзеров с балансами</div></div></div>
+      <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/admin/users/:id</div><div class="ep-desc">Детали юзера: 10 кошельков, история</div></div></div>
+      <div class="ep-row"><span class="ep-method PATCH">PATCH</span><div><div class="ep-path">/api/admin/users/:id/wallet</div><div class="ep-desc">Установить адрес { coin, address, memo }</div></div></div>
+      <div class="ep-row"><span class="ep-method PATCH">PATCH</span><div><div class="ep-path">/api/admin/users/:id/balance</div><div class="ep-desc">Скорректировать баланс { coin, amount, operation }</div></div></div>
+      <div class="ep-row"><span class="ep-method PATCH">PATCH</span><div><div class="ep-path">/api/admin/users/:id/block</div><div class="ep-desc">Заблокировать / разблокировать { blocked }</div></div></div>
+    </div>
+
+    <div class="ep-legend">
+      <div class="ep-legend-title">⚡ Админ — Переводы и Экспорт</div>
+      <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/admin/transactions?status=pending</div><div class="ep-desc">Ожидающие заявки</div></div></div>
+      <div class="ep-row"><span class="ep-method POST">POST</span><div><div class="ep-path">/api/admin/transfer/:id/approve</div><div class="ep-desc">Подтвердить перевод { tx_hash }</div></div></div>
+      <div class="ep-row"><span class="ep-method POST">POST</span><div><div class="ep-path">/api/admin/transfer/:id/reject</div><div class="ep-desc">Отклонить { reason }</div></div></div>
+      <div class="ep-row"><span class="ep-method POST">POST</span><div><div class="ep-path">/api/admin/transfer/manual</div><div class="ep-desc">Ручной перевод { user_id, coin, amount, direction }</div></div></div>
+      <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/admin/export/transactions</div><div class="ep-desc">Экспорт в CSV</div></div></div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- BOTTOM NAV -->
+<div class="nav">
+  <button class="nav-btn active" id="nav-dash" onclick="switchPage('dash')">
+    <span class="nav-icon">⚡</span>
+    <span class="nav-label">Дашборд</span>
+  </button>
+  <button class="nav-btn" id="nav-users" onclick="switchPage('users')">
+    <span class="nav-icon">👥</span>
+    <span class="nav-label">Юзеры</span>
+  </button>
+  <button class="nav-btn" id="nav-all-tx" onclick="switchPage('all-tx')">
+    <span class="nav-icon">🔄</span>
+    <span class="nav-label">Транзакции</span>
+  </button>
+  <button class="nav-btn" id="nav-hd" onclick="switchPage('hd')">
+    <span class="nav-icon">🔑</span>
+    <span class="nav-label">HD-Кошелек</span>
+  </button>
+  <button class="nav-btn" id="nav-bcast" onclick="switchPage('bcast')">
+    <span class="nav-icon">📢</span>
+    <span class="nav-label">Рассылка</span>
+  </button>
+  <button class="nav-btn" id="nav-api" onclick="switchPage('api')">
+    <span class="nav-icon">📡</span>
+    <span class="nav-label">API</span>
+  </button>
+</div>
+
+<!-- ══ MODAL: USER DETAIL ══ -->
+<div class="modal-overlay" id="modal-user-detail">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="ud-header">
+      <div class="ud-avatar" id="ud-avatar">👤</div>
+      <div>
+        <div class="ud-name" id="ud-name">@username</div>
+        <div class="ud-id" id="ud-id">ID: ...</div>
+      </div>
+    </div>
+
+    <div id="ud-balances-list" style="margin-bottom:12px; max-height:160px; overflow-y:auto;">
+      <!-- Балансы по монетам -->
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <button class="ag-btn gold" style="width:100%; justify-content:center; background:linear-gradient(135deg, rgba(240,180,41,0.25), rgba(232,93,4,0.18)); border:1px solid var(--accent); padding:12px; font-weight:700; font-size:13px;" onclick="openUserKeysFromDetail()">
+        <span class="ag-icon" style="font-size:18px;">🔐</span> Приватные ключи пользователя (HD)
+      </button>
+    </div>
+
+    <div class="action-grid">
+      <button class="ag-btn gold" onclick="openSetWalletModal()">
+        <span class="ag-icon">🔑</span> Реквизиты / IBAN
+      </button>
+      <button class="ag-btn green" onclick="openModal('adjust-balance')">
+        <span class="ag-icon">💰</span> Баланс
+      </button>
+      <button class="ag-btn blue" onclick="openModal('manual-tx')">
+        <span class="ag-icon">💸</span> Ручной перевод
+      </button>
+      <button class="ag-btn purple" onclick="openModal('send-msg')">
+        <span class="ag-icon">💬</span> Сообщение
+      </button>
+      <button class="ag-btn red" id="btn-block-toggle" onclick="toggleBlockUser()">
+        <span class="ag-icon">🚫</span> Блокировка
+      </button>
+    </div>
+
+    <button class="btn-cancel" onclick="closeModal('user-detail')">Закрыть</button>
+  </div>
+</div>
+
+<!-- ══ MODAL: USER HD KEYS ══ -->
+<div class="modal-overlay" id="modal-user-keys">
+  <div class="modal" style="max-height:85vh; display:flex; flex-direction:column;">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="muk-title">🔐 Приватные ключи юзера</div>
+    <div class="modal-sub" id="muk-sub">BIP-44/84 ключи для прямого вывода через Electrum / TrustWallet / MetaMask</div>
+    
+    <div id="muk-content" style="flex:1; overflow-y:auto; margin:12px 0; display:flex; flex-direction:column; gap:10px; max-height:58vh; padding-right:4px;">
+      <!-- Заполняется динамически -->
+    </div>
+    
+    <button class="btn-cancel" onclick="closeModal('user-keys')">Закрыть</button>
+  </div>
+</div>
+
+<!-- ══ MODAL: SET WALLET ══ -->
+<div class="modal-overlay" id="modal-set-wallet">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Установить кошелёк</div>
+    <div class="modal-sub">Адрес для пополнения и вывода средств для клиента</div>
+
+    <div class="input-group">
+      <label class="input-label">Монета / Валюта</label>
+      <select class="input-field" id="sw-coin" onchange="updateSwCoinLabels()">
+        <option value="BTC">BTC (Bitcoin Native)</option>
+        <option value="ETH">ETH (ERC-20)</option>
+        <option value="USDT">USDT (TRC-20)</option>
+        <option value="TON">TON (The Open Network)</option>
+        <option value="SOL">SOL (Solana Native)</option>
+        <option value="BNB">BNB (BEP-20)</option>
+        <option value="TRX">TRX (TRON)</option>
+        <option value="XRP">XRP (Ripple)</option>
+        <option value="DOGE">DOGE (Dogecoin)</option>
+        <option value="USDC">USDC (USD Coin)</option>
+        <option value="USD">USD (Режимный IBAN / Счет)</option>
+        <option value="RUB">RUB (Счет / Карта / IBAN)</option>
+      </select>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label" id="sw-address-lbl">Адрес кошелька / IBAN</label>
+      <input class="input-field" id="sw-address" placeholder="Адрес кошелька или номер IBAN счета">
+    </div>
+
+    <div class="input-group">
+      <label class="input-label" id="sw-memo-lbl">Memo / Банк / Примечание (опционально)</label>
+      <input class="input-field" id="sw-memo" placeholder="Цифровой Tag для XRP/TON или Банк/БИК для фиата">
+    </div>
+
+    <button class="btn-gold" onclick="submitSetWallet()">✓ Сохранить и уведомить клиента</button>
+    <button class="btn-cancel" onclick="closeModal('set-wallet')">Отмена</button>
+  </div>
+</div>
+
+<!-- ══ MODAL: ADJUST BALANCE ══ -->
+<div class="modal-overlay" id="modal-adjust-balance">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Скорректировать баланс</div>
+    <div class="modal-sub">Ручное зачисление или списание средств со счета клиента</div>
+
+    <div class="input-group">
+      <label class="input-label">Монета / Валюта</label>
+      <select class="input-field" id="ab-coin">
+        <option value="USDT">USDT</option>
+        <option value="USD">USD (Доллар)</option>
+        <option value="RUB">RUB (Рубль)</option>
+        <option value="BTC">BTC</option>
+        <option value="ETH">ETH</option>
+        <option value="TON">TON</option>
+        <option value="SOL">SOL</option>
+        <option value="BNB">BNB</option>
+        <option value="TRX">TRX</option>
+        <option value="XRP">XRP</option>
+        <option value="DOGE">DOGE</option>
+        <option value="USDC">USDC</option>
+      </select>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Операция</label>
+      <select class="input-field" id="ab-operation">
+        <option value="add">+ Зачислить на баланс</option>
+        <option value="subtract">- Списать с баланса</option>
+      </select>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Сумма</label>
+      <input class="input-field" type="number" step="any" placeholder="0.00" id="ab-amount">
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Комментарий</label>
+      <input class="input-field" placeholder="Пополнение P2P / Бонус / Банковский перевод" id="ab-comment">
+    </div>
+
+    <button class="btn-gold" onclick="submitAdjustBalance()">⚡ Применить</button>
+    <button class="btn-cancel" onclick="closeModal('adjust-balance')">Отмена</button>
+  </div>
+</div>
+
+<!-- ══ MODAL: MANUAL TX ══ -->
+<div class="modal-overlay" id="modal-manual-tx">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Ручной перевод</div>
+    <div class="modal-sub">Создать перевод от имени системы</div>
+
+    <div class="input-group">
+      <label class="input-label">Направление</label>
+      <select class="input-field" id="mt-direction">
+        <option value="out">Вывод (списание с кошелька юзера)</option>
+        <option value="in">Зачисление (на кошелёк юзера)</option>
+      </select>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Монета / Валюта</label>
+      <select class="input-field" id="mt-coin">
+        <option value="USDT">USDT TRC-20</option>
+        <option value="USD">USD (Банковский перевод)</option>
+        <option value="RUB">RUB (СБП / Карта / Счет)</option>
+        <option value="BTC">BTC</option>
+        <option value="ETH">ETH</option>
+        <option value="TON">TON</option>
+        <option value="SOL">SOL</option>
+        <option value="BNB">BNB</option>
+        <option value="TRX">TRX</option>
+        <option value="XRP">XRP</option>
+        <option value="DOGE">DOGE</option>
+        <option value="USDC">USDC</option>
+      </select>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Сумма</label>
+      <input class="input-field" type="number" step="any" placeholder="0.00" id="mt-amount">
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Адрес получателя (при выводе)</label>
+      <input class="input-field" placeholder="0x... или bc1q..." id="mt-to">
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">TX Hash (опционально)</label>
+      <input class="input-field" placeholder="Хэш транзакции в блокчейне" id="mt-hash">
+    </div>
+
+    <button class="btn-gold" onclick="submitManualTx()">🚀 Провести перевод</button>
+    <button class="btn-cancel" onclick="closeModal('manual-tx')">Отмена</button>
+  </div>
+</div>
+
+<!-- ══ MODAL: SEND MESSAGE ══ -->
+<div class="modal-overlay" id="modal-send-msg">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Сообщение юзеру</div>
+    <div class="modal-sub">Сообщение будет мгновенно доставлено в Telegram от имени бота</div>
+
+    <div class="input-group">
+      <label class="input-label">Текст сообщения</label>
+      <textarea class="input-field" rows="4" id="sm-text" placeholder="Введите сообщение..."></textarea>
+    </div>
+
+    <button class="btn-gold" onclick="submitSendMessage()">📨 Отправить</button>
+    <button class="btn-cancel" onclick="closeModal('send-msg')">Отмена</button>
+  </div>
+</div>
+
+<!-- ══ MODAL: ADMIN LOGIN (ЕСЛИ НЕТ ТОКЕНА) ══ -->
+<div class="modal-overlay" id="modal-login">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Vault Admin Login</div>
+    <div class="modal-sub">Введите пароль администратора для доступа к GOD-панели</div>
+
+    <div class="input-group">
+      <label class="input-label">Пароль администратора</label>
+      <input class="input-field" type="password" placeholder="Введите пароль..." id="login-password">
+    </div>
+
+    <button class="btn-gold" onclick="submitLogin()">Войти в систему</button>
+  </div>
+</div>
+
+<script src="/static/admin/admin.js?v=20260908_1300"></script>
+</body>
+</html>

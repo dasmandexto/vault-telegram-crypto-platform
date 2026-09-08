@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Vault — Crypto Wallet</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #18181f;
+    --border: rgba(255,255,255,0.07);
+    --accent: #00e5a0;
+    --accent2: #0066ff;
+    --warn: #ff6b35;
+    --text: #f0f0f5;
+    --muted: #6b6b80;
+    --green: #00e5a0;
+    --red: #ff4d6a;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; background:var(--bg); color:var(--text); font-family:'DM Sans', sans-serif; overflow-x:hidden; }
+
+  /* ───── GRID BACKGROUND ───── */
+  body::before {
+    content:'';
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+    background-size:40px 40px;
+    pointer-events:none; z-index:0;
+  }
+
+  .app { position:relative; z-index:1; max-width:440px; margin:0 auto; padding-bottom:90px; min-height:100vh; }
+
+  /* ───── TOP BAR ───── */
+  .topbar {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 20px 12px;
+    background:linear-gradient(to bottom, rgba(0,229,160,0.05), transparent);
+    border-bottom:1px solid var(--border);
+    position:sticky; top:0; z-index:100;
+    backdrop-filter:blur(20px);
+  }
+  .topbar-logo { font-family:'Space Mono', monospace; font-size:18px; font-weight:700; letter-spacing:-1px; }
+  .topbar-logo span { color:var(--accent); }
+  .topbar-right { display:flex; gap:10px; align-items:center; }
+  .avatar { width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:#000; }
+  .badge { background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:4px 10px; font-size:11px; color:var(--muted); font-family:'Space Mono', monospace; }
+
+  /* ───── SECTIONS ───── */
+  .section { padding:16px 20px 0; }
+
+  /* ───── BALANCE CARD ───── */
+  .balance-card {
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:20px;
+    padding:24px;
+    position:relative;
+    overflow:hidden;
+  }
+  .balance-card::before {
+    content:'';
+    position:absolute; top:-40px; right:-40px;
+    width:160px; height:160px;
+    background:radial-gradient(circle, rgba(0,229,160,0.12) 0%, transparent 70%);
+    border-radius:50%;
+  }
+  .balance-label { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:8px; }
+  .balance-amount { font-family:'Space Mono', monospace; font-size:36px; font-weight:700; line-height:1.1; margin-bottom:6px; }
+  .balance-usd { font-size:13px; color:var(--muted); margin-bottom:18px; }
+  .balance-usd span { color:var(--accent); font-family:'Space Mono', monospace; font-weight:600; }
+
+  .wallet-addr {
+    background:var(--surface2);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 14px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    font-family:'Space Mono', monospace;
+    font-size:11px;
+    color:var(--muted);
+    cursor:pointer;
+    transition:border-color .2s;
+  }
+  .wallet-addr:hover { border-color:rgba(0,229,160,0.3); }
+  .wallet-addr .copy-btn { color:var(--accent); font-size:11px; padding:3px 8px; background:rgba(0,229,160,0.1); border-radius:4px; }
+
+  /* ───── ACTION BUTTONS ───── */
+  .actions { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:18px; }
+  .action-btn {
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+    padding:14px 6px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px;
+    cursor:pointer;
+    transition:all .2s;
+    text-decoration:none;
+  }
+  .action-btn:hover { border-color:rgba(0,229,160,0.4); background:rgba(0,229,160,0.05); }
+  .action-btn .icon {
+    width:42px; height:42px; border-radius:12px;
+    display:flex; align-items:center; justify-content:center; font-size:20px;
+  }
+  .action-btn.send .icon { background:rgba(0,102,255,0.15); }
+  .action-btn.recv .icon { background:rgba(0,229,160,0.12); }
+  .action-btn.exch .icon { background:rgba(255,107,53,0.12); }
+  .action-btn span { font-size:12px; color:var(--muted); font-weight:500; }
+
+  /* ───── ASSETS LIST ───── */
+  .section-title {
+    font-size:13px; text-transform:uppercase; letter-spacing:1.5px;
+    color:var(--muted); font-family:'Space Mono', monospace;
+    margin-bottom:14px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .section-title a { color:var(--accent); font-size:11px; text-transform:none; letter-spacing:0; text-decoration:none; cursor:pointer; }
+
+  .asset-item {
+    display:flex; align-items:center; gap:14px;
+    padding:14px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    margin-bottom:8px;
+    cursor:pointer;
+    transition:all .2s;
+  }
+  .asset-item:hover { border-color:rgba(0,229,160,0.2); }
+  .asset-icon { width:44px; height:44px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; font-weight:bold; }
+  .asset-info { flex:1; }
+  .asset-name { font-weight:600; font-size:15px; display:flex; align-items:center; gap:6px; }
+  .asset-sub { font-size:12px; color:var(--muted); margin-top:2px; font-family:'Space Mono', monospace; }
+  .asset-right { text-align:right; }
+  .asset-balance { font-family:'Space Mono', monospace; font-weight:700; font-size:15px; }
+  .asset-usd { font-size:11px; color:var(--muted); margin-top:2px; font-family:'Space Mono', monospace; }
+
+  /* ───── TX HISTORY ───── */
+  .tx-item {
+    display:flex; align-items:center; gap:12px;
+    padding:12px 14px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:12px;
+    margin-bottom:8px;
+  }
+  .tx-icon { width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+  .tx-icon.in { background:rgba(0,229,160,0.12); }
+  .tx-icon.out { background:rgba(255,77,106,0.12); }
+  .tx-icon.pend { background:rgba(255,107,53,0.12); }
+  .tx-info { flex:1; overflow:hidden; }
+  .tx-name { font-size:13px; font-weight:500; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
+  .tx-date { font-size:11px; color:var(--muted); margin-top:2px; }
+  .tx-amount { font-family:'Space Mono', monospace; font-size:13px; font-weight:700; text-align:right; }
+  .tx-amount.in { color:var(--green); }
+  .tx-amount.out { color:var(--red); }
+  .tx-amount.pend { color:var(--warn); }
+  .tx-status { font-size:10px; color:var(--muted); text-align:right; margin-top:2px; }
+  .tx-status.pending { color:var(--warn); }
+
+  /* ───── BOTTOM NAV ───── */
+  .nav {
+    position:fixed; bottom:0; left:50%; transform:translateX(-50%);
+    width:100%; max-width:440px;
+    background:var(--surface);
+    border-top:1px solid var(--border);
+    display:flex;
+    padding:10px 0 20px;
+    z-index:200;
+    backdrop-filter:blur(20px);
+  }
+  .nav-btn { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; padding:6px; transition:all .2s; border:none; background:none; }
+  .nav-btn .nav-icon { font-size:20px; }
+  .nav-btn .nav-label { font-size:10px; color:var(--muted); font-weight:500; }
+  .nav-btn.active .nav-label { color:var(--accent); }
+  .nav-btn.active .nav-icon { filter:drop-shadow(0 0 6px var(--accent)); }
+
+  /* ───── MODAL ───── */
+  .modal-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:300;
+    display:flex; align-items:flex-end; justify-content:center;
+    opacity:0; pointer-events:none; transition:opacity .3s;
+    backdrop-filter:blur(4px);
+  }
+  .modal-overlay.show { opacity:1; pointer-events:all; }
+  .modal {
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:24px 24px 0 0;
+    width:100%; max-width:440px;
+    padding:24px 22px 36px;
+    transform:translateY(100%);
+    transition:transform .35s cubic-bezier(.16,1,.3,1);
+    max-height:88vh; overflow-y:auto;
+  }
+  .modal-overlay.show .modal { transform:translateY(0); }
+  .modal-handle { width:40px; height:4px; background:var(--border); border-radius:4px; margin:0 auto 16px; }
+  .modal-title { font-size:20px; font-weight:700; margin-bottom:16px; font-family:'DM Sans', sans-serif; }
+
+  .input-group { margin-bottom:14px; }
+  .input-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; display:block; }
+  .input-field {
+    width:100%; padding:13px 15px;
+    background:var(--surface2); border:1px solid var(--border); border-radius:12px;
+    color:var(--text); font-size:14px; font-family:'DM Sans', sans-serif;
+    outline:none; transition:border-color .2s;
+  }
+  .input-field:focus { border-color:rgba(0,229,160,0.5); }
+  .input-field::placeholder { color:var(--muted); }
+
+  .btn-primary {
+    width:100%; padding:15px; border:none; border-radius:14px;
+    background:linear-gradient(135deg, var(--accent), #00b87a);
+    color:#000; font-size:15px; font-weight:700; font-family:'DM Sans', sans-serif;
+    cursor:pointer; transition:all .2s; margin-top:8px;
+  }
+  .btn-primary:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(0,229,160,0.3); }
+  .btn-secondary {
+    width:100%; padding:13px; border:1px solid var(--border); border-radius:14px;
+    background:transparent; color:var(--muted); font-size:14px; font-family:'DM Sans', sans-serif;
+    cursor:pointer; transition:all .2s; margin-top:8px;
+  }
+
+  .select-field {
+    width:100%; padding:13px 15px;
+    background:var(--surface2); border:1px solid var(--border); border-radius:12px;
+    color:var(--text); font-size:14px; font-family:'DM Sans', sans-serif; outline:none;
+    cursor:pointer;
+  }
+
+  /* ───── PAGES ───── */
+  .page { display:none; }
+  .page.active { display:block; }
+
+  /* ───── QR CODE BOX ───── */
+  .qr-box {
+    width:190px; height:190px; margin:16px auto;
+    background:#ffffff; border-radius:16px;
+    display:flex; align-items:center; justify-content:center;
+    padding:8px; box-shadow:0 4px 20px rgba(0,0,0,0.3);
+  }
+  .qr-box img { width:100%; height:100%; object-fit:contain; border-radius:8px; }
+
+  .no-addr-box {
+    padding:24px 16px; text-align:center;
+    background:rgba(255,107,53,0.06); border:1px dashed var(--warn);
+    border-radius:16px; margin:16px 0;
+  }
+  .no-addr-title { font-size:15px; font-weight:600; color:var(--warn); margin-bottom:6px; }
+  .no-addr-sub { font-size:12px; color:var(--muted); margin-bottom:16px; line-height:1.5; }
+
+  .divider { height:1px; background:var(--border); margin:4px 0 16px; }
+  .note { font-size:12px; color:var(--muted); line-height:1.5; padding:10px 14px; background:rgba(255,107,53,0.07); border-radius:10px; border-left:3px solid var(--warn); margin-top:12px; }
+  .note b { color:var(--warn); }
+
+  .tag-badge {
+    background:rgba(0,102,255,0.15); color:#60a5fa;
+    border-radius:6px; padding:3px 8px; font-size:11px;
+    font-family:'Space Mono', monospace; display:inline-block; margin-top:6px;
+  }
+
+  /* ───── TRADING STYLES ───── */
+  .trade-mode-bar {
+    display:grid; grid-template-columns:1fr 1fr; gap:6px;
+    background:var(--surface2); padding:4px; border-radius:14px; margin-bottom:14px;
+    border:1px solid var(--border);
+  }
+  .trade-mode-btn {
+    padding:9px; font-size:12px; font-weight:600; text-align:center;
+    border-radius:10px; border:none; background:transparent; color:var(--muted);
+    cursor:pointer; transition:all .2s; font-family:'DM Sans', sans-serif;
+  }
+  .trade-mode-btn.active {
+    background:var(--surface); color:var(--text);
+    box-shadow:0 2px 10px rgba(0,0,0,0.3); border:1px solid var(--border);
+  }
+  .trade-mode-btn.active span { color:var(--accent); }
+
+  .trade-pair-bar {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:12px;
+  }
+  .pair-select {
+    padding:8px 12px; background:var(--surface2); border:1px solid var(--border);
+    border-radius:10px; color:var(--text); font-weight:700; font-size:14px;
+    font-family:'Space Mono', monospace; outline:none; cursor:pointer;
+  }
+
+  .live-ticker-box {
+    background:var(--surface); border:1px solid var(--border); border-radius:16px;
+    padding:14px 18px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;
+  }
+  .ticker-price { font-family:'Space Mono', monospace; font-size:24px; font-weight:700; }
+  .ticker-change {
+    font-family:'Space Mono', monospace; font-size:11px; font-weight:600;
+    padding:3px 8px; border-radius:6px;
+  }
+  .ticker-change.up { background:rgba(0,229,160,0.15); color:var(--green); }
+  .ticker-change.down { background:rgba(255,77,106,0.15); color:var(--red); }
+
+  .chart-card {
+    background:var(--surface); border:1px solid var(--border); border-radius:18px;
+    padding:12px; margin-bottom:14px; position:relative; overflow:hidden;
+  }
+  .chart-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .tf-group { display:flex; gap:4px; }
+  .tf-btn {
+    padding:3px 8px; border-radius:6px; border:1px solid var(--border);
+    background:var(--surface2); color:var(--muted); font-size:10px;
+    font-family:'Space Mono', monospace; cursor:pointer;
+  }
+  .tf-btn.active { background:rgba(0,229,160,0.15); color:var(--accent); border-color:var(--accent); }
+  #trade-canvas { width:100%; height:190px; display:block; border-radius:10px; }
+
+  /* Binary panel */
+  .binary-box {
+    background:var(--surface); border:1px solid var(--border); border-radius:18px;
+    padding:16px; margin-bottom:14px;
+  }
+  .sub-title { font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:8px; font-family:'Space Mono', monospace; }
+  .exp-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; margin-bottom:14px; }
+  .exp-btn {
+    padding:9px 4px; border-radius:10px; border:1px solid var(--border);
+    background:var(--surface2); color:var(--muted); font-size:12px; font-weight:600;
+    text-align:center; cursor:pointer; font-family:'Space Mono', monospace; transition:all .2s;
+  }
+  .exp-btn.active {
+    background:rgba(0,229,160,0.12); color:var(--accent); border-color:var(--accent);
+  }
+
+  .quick-stakes { display:flex; gap:6px; margin-top:6px; margin-bottom:12px; }
+  .q-stake {
+    flex:1; padding:6px 0; border-radius:8px; border:1px solid var(--border);
+    background:var(--surface2); color:var(--muted); font-size:11px;
+    font-family:'Space Mono', monospace; cursor:pointer; text-align:center;
+  }
+  .q-stake:hover { color:var(--text); border-color:var(--muted); }
+
+  .payout-card {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:10px 14px; background:var(--surface2); border-radius:12px; margin-bottom:14px;
+    font-size:12px;
+  }
+  .payout-val { font-family:'Space Mono', monospace; font-weight:700; color:var(--green); font-size:14px; }
+
+  .binary-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .btn-call {
+    padding:16px 10px; border:none; border-radius:14px;
+    background:linear-gradient(135deg, #00e5a0, #00b87a);
+    color:#000; font-size:15px; font-weight:800; font-family:'DM Sans', sans-serif;
+    cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px;
+    box-shadow:0 4px 18px rgba(0,229,160,0.25); transition:all .2s;
+  }
+  .btn-call:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(0,229,160,0.4); }
+  .btn-call span { font-size:11px; opacity:0.8; font-weight:600; font-family:'Space Mono', monospace; }
+
+  .btn-put {
+    padding:16px 10px; border:none; border-radius:14px;
+    background:linear-gradient(135deg, #ff4d6a, #e62244);
+    color:#fff; font-size:15px; font-weight:800; font-family:'DM Sans', sans-serif;
+    cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px;
+    box-shadow:0 4px 18px rgba(255,77,106,0.25); transition:all .2s;
+  }
+  .btn-put:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(255,77,106,0.4); }
+  .btn-put span { font-size:11px; opacity:0.9; font-weight:600; font-family:'Space Mono', monospace; }
+
+  /* Active Bet Item */
+  .active-bet-card {
+    background:var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:12px 14px; margin-bottom:8px; position:relative; overflow:hidden;
+  }
+  .abc-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .abc-dir {
+    font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px;
+    font-family:'Space Mono', monospace; text-transform:uppercase;
+  }
+  .abc-dir.call { background:rgba(0,229,160,0.15); color:var(--green); }
+  .abc-dir.put { background:rgba(255,77,106,0.15); color:var(--red); }
+  .abc-timer { font-family:'Space Mono', monospace; font-size:13px; font-weight:700; color:var(--accent); }
+  .abc-details { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); font-family:'Space Mono', monospace; }
+  .abc-prog-track { width:100%; height:4px; background:var(--surface2); border-radius:2px; margin-top:8px; overflow:hidden; }
+  .abc-prog-bar { height:100%; background:var(--accent); border-radius:2px; transition:width 1s linear; }
+
+  /* Spot Panel */
+  .spot-box {
+    background:var(--surface); border:1px solid var(--border); border-radius:18px;
+    padding:16px; margin-bottom:14px;
+  }
+  .spot-side-bar {
+    display:grid; grid-template-columns:1fr 1fr; gap:6px;
+    background:var(--surface2); padding:4px; border-radius:12px; margin-bottom:14px;
+  }
+  .spot-side-btn {
+    padding:10px; font-size:13px; font-weight:700; text-align:center;
+    border-radius:8px; border:none; background:transparent; color:var(--muted);
+    cursor:pointer; font-family:'DM Sans', sans-serif; transition:all .2s;
+  }
+  .spot-side-btn.buy.active { background:var(--green); color:#000; }
+  .spot-side-btn.sell.active { background:var(--red); color:#fff; }
+
+  /* Toast Notification */
+  .toast-container {
+    position: fixed;
+    top: 14px;
+    left: 16px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    z-index: 999999;
+    pointer-events: none;
+  }
+  .toast-pill {
+    pointer-events: auto;
+    width: auto;
+    max-width: 96%;
+    padding: 12px 18px;
+    border-radius: 14px;
+    background: rgba(18, 20, 29, 0.96);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  .toast-pill.toast-success {
+    border-color: rgba(0, 229, 160, 0.4);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 15px rgba(0, 229, 160, 0.2);
+  }
+  .toast-pill.toast-error {
+    border-color: rgba(255, 77, 106, 0.45);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 15px rgba(255, 77, 106, 0.2);
+  }
+  .toast-pill.toast-out {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.95);
+  }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateY(-16px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="topbar-logo">vault<span>.</span></div>
+    <div class="topbar-right">
+      <div class="badge" id="user-badge">@loading</div>
+      <div class="avatar" id="user-avatar">U</div>
+    </div>
+  </div>
+
+  <!-- ════ PAGE: HOME ════ -->
+  <div class="page active" id="page-home">
+    <div class="section" style="padding-top:16px">
+      <!-- BALANCE CARD -->
+      <div class="balance-card">
+        <div class="balance-label">Общий баланс</div>
+        <div class="balance-amount" id="total-usd">$0.00</div>
+        <div class="balance-usd">≈ <span id="total-btc">0.000000 BTC</span></div>
+        <div class="wallet-addr" onclick="openReceiveForDefault()">
+          <span id="quick-addr-lbl">USDT (TRC-20)</span>
+          <span class="copy-btn">получить 📥</span>
+        </div>
+      </div>
+
+      <!-- ACTION BUTTONS -->
+      <div class="actions">
+        <div class="action-btn send" onclick="openSendModal()">
+          <div class="icon">↗️</div>
+          <span>Отправить</span>
+        </div>
+        <div class="action-btn recv" onclick="openReceiveModal()">
+          <div class="icon">↙️</div>
+          <span>Получить</span>
+        </div>
+        <div class="action-btn exch" onclick="openExchangeModal()">
+          <div class="icon">🔄</div>
+          <span>Обмен</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ASSETS PREVIEW (TOP 5) -->
+    <div class="section" style="margin-top:20px">
+      <div class="section-title">
+        <span>Активы (10 монет)</span>
+        <a onclick="switchPage('assets')">все 10 →</a>
+      </div>
+      <div id="home-assets-list">
+        <!-- Заполняется динамически -->
+      </div>
+    </div>
+
+    <!-- TRANSACTIONS -->
+    <div class="section" style="margin-top:20px">
+      <div class="section-title">
+        <span>История</span>
+        <a onclick="switchPage('history')">все →</a>
+      </div>
+      <div id="home-tx-list">
+        <!-- Заполняется динамически -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ PAGE: ALL ASSETS (10 МОНЕТ) ════ -->
+  <div class="page" id="page-assets">
+    <div class="section" style="padding-top:16px">
+      <div class="section-title">10 Поддерживаемых активов</div>
+      <div id="all-assets-list">
+        <!-- Все 10 монет -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ PAGE: TRADING (БИНАРНЫЕ ОПЦИОНЫ & СПОТ) ════ -->
+  <div class="page" id="page-trading">
+    <div class="section" style="padding-top:16px">
+      <!-- РЕЖИМ ТОРГОВЛИ -->
+      <div class="trade-mode-bar">
+        <button class="trade-mode-btn active" id="tab-trade-binary" onclick="setTradingMode('binary')">
+          ⚡ <span>Бинарные опционы</span>
+        </button>
+        <button class="trade-mode-btn" id="tab-trade-futures" onclick="setTradingMode('futures')">
+          📈 <span>Фьючерсы (USDT)</span>
+        </button>
+      </div>
+
+      <!-- ВЫБОР ПАРЫ И ТИКЕР -->
+      <div class="trade-pair-bar">
+        <select class="pair-select" id="trade-pair-select" onchange="onTradingPairChanged()">
+          <option value="BTC/USDT">BTC / USDT</option>
+          <option value="ETH/USDT">ETH / USDT</option>
+          <option value="SOL/USDT">SOL / USDT</option>
+          <option value="TON/USDT">TON / USDT</option>
+          <option value="BNB/USDT">BNB / USDT</option>
+          <option value="XRP/USDT">XRP / USDT</option>
+          <option value="USDT/RUB">USDT / RUB</option>
+          <option value="BTC/USD">BTC / USD</option>
+        </select>
+        <div style="font-family:'Space Mono', monospace; font-size:11px; color:var(--muted);" id="trade-status-dot">
+          🟢 LIVE
+        </div>
+      </div>
+
+      <!-- ТЕКУЩАЯ ЦЕНА -->
+      <div class="live-ticker-box">
+        <div>
+          <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">Рыночная цена</div>
+          <div class="ticker-price" id="live-price-val">$0.00</div>
+        </div>
+        <div style="text-align:right">
+          <div class="ticker-change up" id="live-price-chg">+0.00%</div>
+          <div style="font-size:10px; color:var(--muted); margin-top:4px;" id="ticker-time">--:--:--</div>
+        </div>
+      </div>
+
+      <!-- ЖИВОЙ ГРАФИК -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <div style="font-size:11px; color:var(--muted); font-family:'Space Mono', monospace;">График котировок</div>
+          <div class="tf-group">
+            <button class="tf-btn" id="tf-1s" onclick="setTimeframe('1s')">1s</button>
+            <button class="tf-btn active" id="tf-5s" onclick="setTimeframe('5s')">5s</button>
+            <button class="tf-btn" id="tf-1m" onclick="setTimeframe('1m')">1m</button>
+          </div>
+        </div>
+        <canvas id="trade-canvas" width="400" height="190"></canvas>
+      </div>
+
+      <!-- ─── ПАНЕЛЬ: БИНАРНЫЕ ОПЦИОНЫ ─── -->
+      <div id="panel-binary" class="binary-box">
+        <div class="sub-title">Время экспирации</div>
+        <div class="exp-grid">
+          <button class="exp-btn active" data-exp="30" onclick="selectExpiration(30, this)">30 сек</button>
+          <button class="exp-btn" data-exp="60" onclick="selectExpiration(60, this)">1 мин</button>
+          <button class="exp-btn" data-exp="180" onclick="selectExpiration(180, this)">3 мин</button>
+          <button class="exp-btn" data-exp="300" onclick="selectExpiration(300, this)">5 мин</button>
+        </div>
+
+        <div class="sub-title">Сумма ставки (USDT) <span style="float:right; color:var(--accent);" id="binary-usdt-balance">Баланс: $0.00</span></div>
+        <input class="input-field" type="number" step="any" id="binary-stake-input" value="10" placeholder="10.00" oninput="updatePayoutCalc()">
+        
+        <div class="quick-stakes">
+          <button class="q-stake" onclick="setQuickStake(10)">$10</button>
+          <button class="q-stake" onclick="setQuickStake(50)">$50</button>
+          <button class="q-stake" onclick="setQuickStake(100)">$100</button>
+          <button class="q-stake" onclick="setQuickStake(500)">$500</button>
+          <button class="q-stake" onclick="setQuickStake('MAX')">MAX</button>
+        </div>
+
+        <div class="payout-card">
+          <span>Доходность: <b style="color:var(--accent);">+85%</b></span>
+          <span>К выплате: <span class="payout-val" id="binary-payout-val">$18.50</span></span>
+        </div>
+
+        <!-- КНОПКИ СТАВКИ CALL / PUT -->
+        <div class="binary-actions">
+          <button class="btn-call" onclick="placeBinaryBet('call')">
+            ВВЕРХ ↗
+            <span>Выплата 85%</span>
+          </button>
+          <button class="btn-put" onclick="placeBinaryBet('put')">
+            ВНИЗ ↘
+            <span>Выплата 85%</span>
+          </button>
+        </div>
+
+        <!-- АКТИВНЫЕ СТАВКИ -->
+        <div style="margin-top:20px;">
+          <div class="sub-title">Активные опционы (<span id="active-bets-count">0</span>)</div>
+          <div id="active-bets-list">
+            <div style="text-align:center; padding:12px; color:var(--muted); font-size:12px;">Нет активных сделок</div>
+          </div>
+        </div>
+
+        <!-- ИСТОРИЯ ОПЦИОНОВ -->
+        <div style="margin-top:16px;">
+          <div class="sub-title">История сделок</div>
+          <div id="history-bets-list">
+            <!-- История ставок -->
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── ПАНЕЛЬ: ФЬЮЧЕРСЫ (КОНТРАКТНАЯ ТОРГОВЛЯ В USDT) ─── -->
+      <div id="panel-futures" class="spot-box" style="display:none;">
+        <div class="spot-side-bar">
+          <button class="spot-side-btn buy active" id="futures-btn-long" onclick="setFuturesSide('LONG')">🟢 LONG (Вверх)</button>
+          <button class="spot-side-btn sell" id="futures-btn-short" onclick="setFuturesSide('SHORT')">🔴 SHORT (Вниз)</button>
+        </div>
+
+        <div style="font-size:11px; color:var(--muted); text-align:center; margin-bottom:12px; font-family:'Space Mono', monospace;">
+          ⚡ Торговля контрактами в USDT (монеты BTC в кошелек не поступают)
+        </div>
+
+        <div class="sub-title">Кредитное плечо (Leverage)</div>
+        <div class="exp-grid" style="grid-template-columns:repeat(5, 1fr); margin-bottom:14px;">
+          <button class="exp-btn" id="lev-btn-1" onclick="setFuturesLeverage(1, this)">1x</button>
+          <button class="exp-btn" id="lev-btn-2" onclick="setFuturesLeverage(2, this)">2x</button>
+          <button class="exp-btn" id="lev-btn-5" onclick="setFuturesLeverage(5, this)">5x</button>
+          <button class="exp-btn active" id="lev-btn-10" onclick="setFuturesLeverage(10, this)">10x</button>
+          <button class="exp-btn" id="lev-btn-20" onclick="setFuturesLeverage(20, this)">20x</button>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label" id="futures-margin-lbl">Сумма маржи (USDT)</label>
+          <input class="input-field" type="number" step="any" id="futures-margin-input" value="50" placeholder="50.00" oninput="calcFuturesSummary()">
+          <div style="font-size:11px; color:var(--muted); margin-top:4px; display:flex; justify-content:space-between;">
+            <span id="futures-balance-hint">Доступно: $0.00 USDT</span>
+            <span style="color:var(--accent); cursor:pointer;" onclick="setFuturesMax()">[MAX]</span>
+          </div>
+        </div>
+
+        <div class="payout-card" style="margin-top:14px;">
+          <div>
+            <div style="font-size:11px; color:var(--muted);">Объем позиции:</div>
+            <div class="payout-val" id="futures-calc-volume" style="font-size:13px; color:var(--text);">$500.00 USDT</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:11px; color:var(--muted);">Расчет в:</div>
+            <div style="font-size:12px; font-weight:700; color:var(--accent);">USDT (Без монет)</div>
+          </div>
+        </div>
+
+        <button class="btn-primary" id="futures-submit-btn" style="margin-top:10px; background:linear-gradient(135deg, var(--green), #00b87a);" onclick="submitFuturesOrder()">
+          🟢 Открыть LONG (по рынку)
+        </button>
+
+        <!-- ОТКРЫТЫЕ ПОЗИЦИИ -->
+        <div style="margin-top:24px;">
+          <div class="sub-title" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Открытые позиции</span>
+            <span class="tag-badge" id="futures-open-count" style="margin:0; font-size:10px;">0</span>
+          </div>
+          <div id="futures-positions-list">
+            <!-- Карточки открытых позиций с Live PnL -->
+          </div>
+        </div>
+
+        <!-- ИСТОРИЯ ЗАКРЫТЫХ ПОЗИЦИЙ -->
+        <div style="margin-top:20px;">
+          <div class="sub-title">История сделок</div>
+          <div id="futures-history-list">
+            <!-- История закрытых позиций -->
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════ PAGE: HISTORY ════ -->
+  <div class="page" id="page-history">
+    <div class="section" style="padding-top:16px">
+      <div class="section-title">Все транзакции</div>
+      <div id="full-tx-list">
+        <!-- Полная история -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ PAGE: PROFILE ════ -->
+  <div class="page" id="page-profile">
+    <div class="section" style="padding-top:16px">
+      <div class="section-title">Профиль пользователя</div>
+      <div style="text-align:center; padding:24px 0 16px;">
+        <div class="avatar" id="profile-avatar" style="width:68px;height:68px;font-size:26px;margin:0 auto 10px">U</div>
+        <div style="font-size:18px;font-weight:700" id="profile-username">@username</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px" id="profile-id">ID: ...</div>
+      </div>
+      
+      <div class="divider"></div>
+
+      <div class="asset-item" onclick="openSendModal('p2p')">
+        <div class="asset-icon" style="background:rgba(0,102,255,0.12)">👥</div>
+        <div class="asset-info">
+          <div class="asset-name">P2P Перевод по @username</div>
+          <div class="asset-sub">Мгновенно без комиссии</div>
+        </div>
+        <div style="color:var(--accent);font-size:13px">→</div>
+      </div>
+
+      <div class="asset-item" onclick="switchPage('assets')">
+        <div class="asset-icon" style="background:rgba(0,229,160,0.12)">💎</div>
+        <div class="asset-info">
+          <div class="asset-name">Мои адреса кошельков</div>
+          <div class="asset-sub" id="profile-wallets-count">10 поддерживаемых монет</div>
+        </div>
+        <div style="color:var(--muted);font-size:13px">→</div>
+      </div>
+
+      <div class="asset-item" onclick="logoutSession()">
+        <div class="asset-icon" style="background:rgba(255,77,106,0.12)">🚪</div>
+        <div class="asset-info">
+          <div class="asset-name" style="color:var(--red)">Сменить аккаунт / Выйти</div>
+          <div class="asset-sub">Очистить кэш сессии</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="nav">
+  <button class="nav-btn active" id="nav-home" onclick="switchPage('home')">
+    <span class="nav-icon">🏠</span>
+    <span class="nav-label">Главная</span>
+  </button>
+  <button class="nav-btn" id="nav-assets" onclick="switchPage('assets')">
+    <span class="nav-icon">💎</span>
+    <span class="nav-label">Активы</span>
+  </button>
+  <button class="nav-btn" id="nav-trading" onclick="switchPage('trading')">
+    <span class="nav-icon">📈</span>
+    <span class="nav-label">Торговля</span>
+  </button>
+  <button class="nav-btn" id="nav-history" onclick="switchPage('history')">
+    <span class="nav-icon">📋</span>
+    <span class="nav-label">История</span>
+  </button>
+  <button class="nav-btn" id="nav-profile" onclick="switchPage('profile')">
+    <span class="nav-icon">👤</span>
+    <span class="nav-label">Профиль</span>
+  </button>
+</div>
+
+<!-- ═══ MODAL: SEND (ОТПРАВКА) ═══ -->
+<div class="modal-overlay" id="modal-send">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="send-modal-title">Отправить криптовалюту</div>
+
+    <div class="input-group">
+      <label class="input-label">Монета для вывода</label>
+      <select class="select-field" id="send-coin" onchange="updateSendBalanceHint()">
+        <!-- Заполняется динамически -->
+      </select>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Получатель (Адрес или @username)</label>
+      <input class="input-field" placeholder="Адрес кошелька или @username" id="send-to">
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Сумма <span id="send-balance-hint" style="color:var(--accent);float:right;text-transform:none"></span></label>
+      <input class="input-field" type="number" step="any" placeholder="0.00" id="send-amount">
+    </div>
+
+    <div class="input-group" id="send-memo-group" style="display:none">
+      <label class="input-label">Destination Tag / Memo (для XRP/TON)</label>
+      <input class="input-field" placeholder="Цифровой Memo / Tag" id="send-memo">
+    </div>
+
+    <div class="note">
+      <b>⚠ Проверка оператором.</b> Заявка на вывод будет проверена администратором в кратчайшие сроки.
+    </div>
+
+    <button class="btn-primary" onclick="submitSend()">Отправить заявку</button>
+    <button class="btn-secondary" onclick="closeModal('send')">Отмена</button>
+  </div>
+</div>
+
+<!-- ═══ MODAL: RECEIVE (ПОЛУЧЕНИЕ С QR-КОДОМ) ═══ -->
+<div class="modal-overlay" id="modal-receive">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Пополнить кошелек</div>
+
+    <div class="input-group">
+      <label class="input-label">Выберите монету</label>
+      <select class="select-field" id="receive-coin-select" onchange="loadReceiveDetails()">
+        <!-- 10 монет -->
+      </select>
+    </div>
+
+    <div id="receive-content">
+      <!-- Загружается динамически: QR-код, адрес или кнопка "Запросить адрес" -->
+    </div>
+
+    <button class="btn-secondary" onclick="closeModal('receive')">Закрыть</button>
+  </div>
+</div>
+
+<!-- ═══ MODAL: EXCHANGE (ОБМЕН) ═══ -->
+<div class="modal-overlay" id="modal-exchange">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Обмен криптовалюты</div>
+
+    <div class="input-group">
+      <label class="input-label">Отдаю</label>
+      <select class="select-field" id="exchange-from" onchange="calcExchangePreview()">
+        <!-- Монеты -->
+      </select>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Сумма</label>
+      <input class="input-field" type="number" step="any" placeholder="0.00" id="exchange-amount" oninput="calcExchangePreview()">
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Получаю</label>
+      <select class="select-field" id="exchange-to" onchange="calcExchangePreview()">
+        <!-- Монеты -->
+      </select>
+    </div>
+
+    <div id="exchange-estimate" style="font-family:'Space Mono', monospace; font-size:13px; color:var(--accent); margin-bottom:12px; text-align:center;">
+      ≈ 0.00
+    </div>
+
+    <div class="note">
+      <b>Ручной обмен.</b> Заявка на обмен обрабатывается администратором по текущему рыночному курсу.
+    </div>
+
+    <button class="btn-primary" onclick="submitExchange()">Создать заявку на обмен</button>
+    <button class="btn-secondary" onclick="closeModal('exchange')">Отмена</button>
+  </div>
+</div>
+
+<!-- FLOATING TOAST NOTIFICATION CONTAINER -->
+<div id="toast-container" class="toast-container"></div>
+
+<script src="/static/client/app.js?v=20260908_1240"></script>
+</body>
+</html>

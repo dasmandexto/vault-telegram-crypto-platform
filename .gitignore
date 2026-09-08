@@ -1,0 +1,63 @@
+﻿# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pub
+*.pfx
+*.cert
+*.crt
+
+# Databases & State
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# Backups & Archives
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Temporary / Agent / Scratch Directories
+scratch/
+server_key.pem
+*.log
+logs/
+.system_generated/
+
+# Python Virtual Environments & Bytecode
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+.venv/
+env/
+ENV/
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
