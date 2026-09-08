@@ -312,15 +312,42 @@
     background:var(--surface); border:1px solid var(--border); border-radius:18px;
     padding:12px; margin-bottom:14px; position:relative; overflow:hidden;
   }
-  .chart-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
-  .tf-group { display:flex; gap:4px; }
-  .tf-btn {
-    padding:3px 8px; border-radius:6px; border:1px solid var(--border);
-    background:var(--surface2); color:var(--muted); font-size:10px;
-    font-family:'Space Mono', monospace; cursor:pointer;
+  .chart-header {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:8px; gap:8px;
   }
-  .tf-btn.active { background:rgba(0,229,160,0.15); color:var(--accent); border-color:var(--accent); }
-  #trade-canvas { width:100%; height:190px; display:block; border-radius:10px; }
+  .chart-type-toggle {
+    display:flex; background:rgba(0,0,0,0.35); border:1px solid var(--border);
+    border-radius:8px; padding:2px; gap:2px;
+  }
+  .chart-type-btn {
+    border:none; background:transparent; color:var(--muted);
+    font-size:10px; font-family:'Space Mono', monospace; font-weight:600;
+    padding:4px 8px; border-radius:6px; cursor:pointer;
+    display:flex; align-items:center; gap:4px; transition:all .2s;
+  }
+  .chart-type-btn:hover { color:var(--text); }
+  .chart-type-btn.active {
+    background:rgba(0,229,160,0.15); color:var(--accent);
+    box-shadow:0 0 10px rgba(0,229,160,0.15);
+  }
+  .tf-scroll-bar {
+    display:flex; gap:5px; overflow-x:auto; padding-bottom:6px; margin-bottom:8px;
+    scrollbar-width:none; -ms-overflow-style:none;
+  }
+  .tf-scroll-bar::-webkit-scrollbar { display:none; }
+  .tf-btn {
+    flex:0 0 auto; min-width:32px; padding:4px 7px; border-radius:6px;
+    border:1px solid var(--border); background:var(--surface2); color:var(--muted);
+    font-size:10px; font-family:'Space Mono', monospace; text-align:center;
+    cursor:pointer; transition:all .15s; font-weight:600;
+  }
+  .tf-btn:hover { color:var(--text); border-color:rgba(255,255,255,0.2); }
+  .tf-btn.active {
+    background:rgba(0,229,160,0.15); color:var(--accent);
+    border-color:var(--accent); box-shadow:0 0 8px rgba(0,229,160,0.2);
+  }
+  #trade-canvas { width:100%; height:205px; display:block; border-radius:10px; }
 
   /* Binary panel */
   .binary-box {
@@ -579,14 +606,30 @@
       <!-- ЖИВОЙ ГРАФИК -->
       <div class="chart-card">
         <div class="chart-header">
-          <div style="font-size:11px; color:var(--muted); font-family:'Space Mono', monospace;">График котировок</div>
-          <div class="tf-group">
-            <button class="tf-btn" id="tf-1s" onclick="setTimeframe('1s')">1s</button>
-            <button class="tf-btn active" id="tf-5s" onclick="setTimeframe('5s')">5s</button>
-            <button class="tf-btn" id="tf-1m" onclick="setTimeframe('1m')">1m</button>
+          <div class="chart-type-toggle">
+            <button class="chart-type-btn" id="chart-type-line" onclick="setChartType('line')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></svg>
+              Линия
+            </button>
+            <button class="chart-type-btn active" id="chart-type-candles" onclick="setChartType('candles')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="4" y="6" width="6" height="12" rx="1"></rect><line x1="7" y1="2" x2="7" y2="6"></line><line x1="7" y1="18" x2="7" y2="22"></line><rect x="14" y1="9" width="6" height="9" rx="1"></rect><line x1="17" y1="4" x2="17" y2="9"></line><line x1="17" y1="18" x2="17" y2="22"></line></svg>
+              Свечи
+            </button>
           </div>
+          <div style="font-size:10px; color:var(--muted); font-family:'Space Mono', monospace;" id="chart-timeframe-label">1m</div>
         </div>
-        <canvas id="trade-canvas" width="400" height="190"></canvas>
+        <div class="tf-scroll-bar">
+          <button class="tf-btn active" id="tf-1m" onclick="setTimeframe('1m')">1м</button>
+          <button class="tf-btn" id="tf-5m" onclick="setTimeframe('5m')">5м</button>
+          <button class="tf-btn" id="tf-15m" onclick="setTimeframe('15m')">15м</button>
+          <button class="tf-btn" id="tf-1h" onclick="setTimeframe('1h')">1ч</button>
+          <button class="tf-btn" id="tf-4h" onclick="setTimeframe('4h')">4ч</button>
+          <button class="tf-btn" id="tf-1d" onclick="setTimeframe('1d')">1д</button>
+          <button class="tf-btn" id="tf-1w" onclick="setTimeframe('1w')">1н</button>
+          <button class="tf-btn" id="tf-1M" onclick="setTimeframe('1M')">1М</button>
+          <button class="tf-btn" id="tf-1y" onclick="setTimeframe('1y')">1г</button>
+        </div>
+        <canvas id="trade-canvas" width="400" height="205"></canvas>
       </div>
 
       <!-- ─── ПАНЕЛЬ: БИНАРНЫЕ ОПЦИОНЫ ─── -->
