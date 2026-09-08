@@ -619,16 +619,29 @@ let currentTradingMode = "binary"; // 'binary' или 'futures'
 let currentLivePrice = 0;
 let lastLivePrice = 0;
 let chartPoints = [];
+let chartCandles = [];
+let currentChartType = (function() {
+  try { return localStorage.getItem("vault_chart_type") || "candles"; } catch(e) { return "candles"; }
+})();
+let chartTimeframe = "1m";
 let activeBinaryBets = [];
 let activeFuturesPositions = [];
 let futuresSide = "LONG";
 let futuresLeverage = 10;
 let tradeTickerInterval = null;
 let betsCountdownInterval = null;
-let chartTimeframe = "5s";
 
 function onOpenTradingPage() {
   updateTradingBalanceHints();
+
+  // Синхронизируем состояние кнопок типа графика и таймфрейма
+  document.getElementById("chart-type-line")?.classList.toggle("active", currentChartType === "line");
+  document.getElementById("chart-type-candles")?.classList.toggle("active", currentChartType === "candles");
+  document.querySelectorAll(".tf-scroll-bar .tf-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById(`tf-${chartTimeframe}`)?.classList.add("active");
+  const tfLbl = document.getElementById("chart-timeframe-label");
+  if (tfLbl) tfLbl.textContent = chartTimeframe;
+
   onTradingPairChanged();
   loadActiveBinaryBets();
   loadBinaryHistory();
@@ -676,6 +689,7 @@ async function onTradingPairChanged() {
   if (sel) selectedTradingPair = sel.value;
 
   chartPoints = [];
+  chartCandles = [];
   await updateLivePriceTicker();
   await loadChartData();
 
@@ -685,20 +699,45 @@ async function onTradingPairChanged() {
   }
 }
 
+function setChartType(type) {
+  if (type !== "line" && type !== "candles") type = "candles";
+  currentChartType = type;
+  try {
+    localStorage.setItem("vault_chart_type", type);
+  } catch (e) {}
+
+  document.getElementById("chart-type-line")?.classList.toggle("active", type === "line");
+  document.getElementById("chart-type-candles")?.classList.toggle("active", type === "candles");
+
+  drawChart();
+}
+
 function setTimeframe(tf) {
   chartTimeframe = tf;
-  document.querySelectorAll(".tf-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".tf-scroll-bar .tf-btn").forEach(b => b.classList.remove("active"));
   const btn = document.getElementById(`tf-${tf}`);
-  if (btn) btn.classList.add("active");
+  if (btn) {
+    btn.classList.add("active");
+    btn.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
+  }
+
+  const lbl = document.getElementById("chart-timeframe-label");
+  if (lbl) lbl.textContent = tf;
+
   loadChartData();
 }
 
 async function loadChartData() {
   try {
-    const data = await apiRequest(`/api/trading/chart?pair=${encodeURIComponent(selectedTradingPair)}&interval=1m&limit=45`);
+    const data = await apiRequest(`/api/trading/chart?pair=${encodeURIComponent(selectedTradingPair)}&timeframe=${encodeURIComponent(chartTimeframe)}&limit=42`);
     if (data.candles && data.candles.length > 0) {
+      chartCandles = data.candles;
       chartPoints = data.candles.map(c => c.close);
       if (currentLivePrice > 0) {
+        const last = chartCandles[chartCandles.length - 1];
+        last.close = currentLivePrice;
+        if (currentLivePrice > last.high) last.high = currentLivePrice;
+        if (currentLivePrice < last.low) last.low = currentLivePrice;
         chartPoints[chartPoints.length - 1] = currentLivePrice;
       }
       drawChart();
@@ -744,17 +783,39 @@ async function updateLivePriceTicker() {
         timeEl.textContent = now.toTimeString().split(" ")[0];
       }
 
-      // Добавляем точку на график
-      if (chartPoints.length === 0) {
+      // Добавляем точку и свечу на график
+      if (chartCandles.length === 0) {
+        chartCandles.push({
+          time: Math.floor(Date.now() / 1000),
+          open: currentLivePrice,
+          high: currentLivePrice,
+          low: currentLivePrice,
+          close: currentLivePrice,
+          volume: 1
+        });
         chartPoints.push(currentLivePrice);
       } else {
+        const lastCandle = chartCandles[chartCandles.length - 1];
+        lastCandle.close = currentLivePrice;
+        if (currentLivePrice > lastCandle.high) lastCandle.high = currentLivePrice;
+        if (currentLivePrice < lastCandle.low) lastCandle.low = currentLivePrice;
         chartPoints[chartPoints.length - 1] = currentLivePrice;
-        // Каждые 5 секунд сдвигаем
-        if (Math.random() > 0.6 && chartPoints.length < 60) {
+
+        // Для таймфрейма 1m симулируем рождение новой свечи периодически
+        if (chartTimeframe === "1m" && Math.random() > 0.88 && chartCandles.length < 45) {
+          chartCandles.push({
+            time: Math.floor(Date.now() / 1000),
+            open: currentLivePrice,
+            high: currentLivePrice,
+            low: currentLivePrice,
+            close: currentLivePrice,
+            volume: 1
+          });
           chartPoints.push(currentLivePrice);
-        } else if (chartPoints.length >= 60) {
-          chartPoints.shift();
-          chartPoints.push(currentLivePrice);
+          if (chartCandles.length > 45) {
+            chartCandles.shift();
+            chartPoints.shift();
+          }
         }
       }
 
@@ -793,10 +854,11 @@ function drawCanvasPill(ctx, x, y, w, h, radius, fillColor, strokeColor) {
   }
 }
 
-// ── РИСОВАНИЕ НЕОНОВОГО ГРАФИКА НА HTML5 CANVAS ──
+// ── РИСОВАНИЕ ГРАФИКА (ЛИНИЯ / ЯПОНСКИЕ СВЕЧИ) НА HTML5 CANVAS ──
 function drawChart() {
   const canvas = document.getElementById("trade-canvas");
-  if (!canvas || chartPoints.length < 2) return;
+  const count = chartCandles.length > 0 ? chartCandles.length : chartPoints.length;
+  if (!canvas || count < 2) return;
 
   const ctx = canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
@@ -815,23 +877,31 @@ function drawChart() {
 
   ctx.clearRect(0, 0, W, H);
 
-  let minP = Math.min(...chartPoints);
-  let maxP = Math.max(...chartPoints);
+  // Определение минимума и максимума цен
+  let minP, maxP;
+  if (currentChartType === "candles" && chartCandles.length > 0) {
+    minP = Math.min(...chartCandles.map(c => c.low));
+    maxP = Math.max(...chartCandles.map(c => c.high));
+  } else {
+    minP = Math.min(...chartPoints);
+    maxP = Math.max(...chartPoints);
+  }
+
   if (minP === maxP) {
-    minP *= 0.999;
-    maxP *= 1.001;
+    minP *= 0.998;
+    maxP *= 1.002;
   }
   const diff = maxP - minP;
-  minP -= diff * 0.1;
-  maxP += diff * 0.1;
+  minP -= diff * 0.08;
+  maxP += diff * 0.08;
 
   const chartW = W - padRight;
   const chartH = H - padTop - padBottom;
 
   const getY = p => padTop + (1 - (p - minP) / (maxP - minP)) * chartH;
-  const getX = i => (i / (chartPoints.length - 1)) * chartW;
+  const getX = i => (i / Math.max(1, chartPoints.length - 1)) * chartW;
 
-  // 1. Сетка
+  // 1. Координатная сетка цен
   ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
   ctx.lineWidth = 1;
   ctx.setLineDash([4, 4]);
@@ -842,70 +912,109 @@ function drawChart() {
     ctx.lineTo(chartW, y);
     ctx.stroke();
 
-    const priceAtY = maxP - (diff * 1.2 / 4) * i;
+    const priceAtY = maxP - ((maxP - minP) / 4) * i;
     ctx.fillStyle = "var(--muted)";
     ctx.font = "9px 'Space Mono', monospace";
     ctx.textAlign = "left";
-    ctx.fillText(priceAtY.toFixed(1), chartW + 6, y + 3);
+    const dec = priceAtY < 1 ? 4 : (priceAtY < 10 ? 3 : (priceAtY > 999 ? 0 : 2));
+    ctx.fillText(priceAtY.toFixed(dec), chartW + 6, y + 3);
   }
   ctx.setLineDash([]);
 
-  // 2. Неоновый градиент под графиком
-  const grad = ctx.createLinearGradient(0, padTop, 0, H - padBottom);
-  grad.addColorStop(0, "rgba(0, 229, 160, 0.25)");
-  grad.addColorStop(1, "rgba(0, 229, 160, 0.0)");
+  // 2. Отрисовка выбранного типа графика
+  if (currentChartType === "candles" && chartCandles.length > 0) {
+    // ── РЕЖИМ: ЯПОНСКИЕ СВЕЧИ ──
+    const n = chartCandles.length;
+    const candleSlot = chartW / n;
+    const candleW = Math.max(3, Math.min(10, candleSlot * 0.72));
 
-  ctx.beginPath();
-  ctx.moveTo(getX(0), getY(chartPoints[0]));
-  for (let i = 1; i < chartPoints.length; i++) {
-    ctx.lineTo(getX(i), getY(chartPoints[i]));
+    for (let i = 0; i < n; i++) {
+      const c = chartCandles[i];
+      const isUp = c.close >= c.open;
+      const color = isUp ? "#00e5a0" : "#ff4d6a";
+      const xCenter = i * candleSlot + candleSlot / 2;
+
+      const highY = getY(c.high);
+      const lowY = getY(c.low);
+      const openY = getY(c.open);
+      const closeY = getY(c.close);
+
+      // Фитиль (Wick)
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(xCenter, highY);
+      ctx.lineTo(xCenter, lowY);
+      ctx.stroke();
+
+      // Тело свечи (Body)
+      const bodyTop = Math.min(openY, closeY);
+      const bodyH = Math.max(2, Math.abs(closeY - openY));
+      ctx.fillStyle = color;
+      ctx.fillRect(xCenter - candleW / 2, bodyTop, candleW, bodyH);
+    }
+  } else {
+    // ── РЕЖИМ: НЕОНОВАЯ ЛИНИЯ ──
+    const grad = ctx.createLinearGradient(0, padTop, 0, H - padBottom);
+    grad.addColorStop(0, "rgba(0, 229, 160, 0.25)");
+    grad.addColorStop(1, "rgba(0, 229, 160, 0.0)");
+
+    ctx.beginPath();
+    ctx.moveTo(getX(0), getY(chartPoints[0]));
+    for (let i = 1; i < chartPoints.length; i++) {
+      ctx.lineTo(getX(i), getY(chartPoints[i]));
+    }
+    ctx.lineTo(chartW, H - padBottom);
+    ctx.lineTo(0, H - padBottom);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Линия котировки
+    ctx.beginPath();
+    ctx.moveTo(getX(0), getY(chartPoints[0]));
+    for (let i = 1; i < chartPoints.length; i++) {
+      ctx.lineTo(getX(i), getY(chartPoints[i]));
+    }
+    ctx.strokeStyle = "#00e5a0";
+    ctx.lineWidth = 2.2;
+    ctx.shadowColor = "#00e5a0";
+    ctx.shadowBlur = 8;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Точка текущей цены
+    const lastX = chartW;
+    const lastY = getY(chartPoints[chartPoints.length - 1]);
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "#00e5a0";
+    ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
   }
-  ctx.lineTo(chartW, H - padBottom);
-  ctx.lineTo(0, H - padBottom);
-  ctx.closePath();
-  ctx.fillStyle = grad;
-  ctx.fill();
 
-  // 3. Линия котировки
-  ctx.beginPath();
-  ctx.moveTo(getX(0), getY(chartPoints[0]));
-  for (let i = 1; i < chartPoints.length; i++) {
-    ctx.lineTo(getX(i), getY(chartPoints[i]));
-  }
-  ctx.strokeStyle = "#00e5a0";
-  ctx.lineWidth = 2.2;
-  ctx.shadowColor = "#00e5a0";
-  ctx.shadowBlur = 8;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
+  // 3. Пунктирная линия текущей цены
+  const currentP = currentLivePrice || (chartCandles.length > 0 ? chartCandles[chartCandles.length - 1].close : chartPoints[chartPoints.length - 1]);
+  const currentY = getY(currentP);
 
-  // 4. Точка текущей цены
-  const lastX = chartW;
-  const lastY = getY(chartPoints[chartPoints.length - 1]);
-  ctx.beginPath();
-  ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
-  ctx.fillStyle = "#00e5a0";
-  ctx.fill();
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // 5. Пунктирная линия текущей цены
   ctx.setLineDash([3, 3]);
   ctx.strokeStyle = "rgba(0, 229, 160, 0.4)";
   ctx.beginPath();
-  ctx.moveTo(0, lastY);
-  ctx.lineTo(chartW, lastY);
+  ctx.moveTo(0, currentY);
+  ctx.lineTo(chartW, currentY);
   ctx.stroke();
   ctx.setLineDash([]);
 
   // Бейдж текущей цены на шкале
   ctx.fillStyle = "#00e5a0";
-  ctx.fillRect(chartW + 4, lastY - 8, 48, 16);
+  ctx.fillRect(chartW + 4, currentY - 8, 48, 16);
   ctx.fillStyle = "#000000";
   ctx.font = "bold 9px 'Space Mono', monospace";
   ctx.textAlign = "center";
-  ctx.fillText(currentLivePrice > 999 ? currentLivePrice.toFixed(0) : currentLivePrice.toFixed(2), chartW + 28, lastY + 3);
+  const pDec = currentP < 1 ? 4 : (currentP < 10 ? 3 : (currentP > 999 ? 0 : 2));
+  ctx.fillText(currentP.toFixed(pDec), chartW + 28, currentY + 3);
 
   // 6. Сбор всех активных отметок на графике (бинарные и фьючерсы)
   const chartMarks = [];
