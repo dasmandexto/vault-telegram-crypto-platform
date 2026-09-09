@@ -254,10 +254,11 @@ async def admin_block_user(
     action = "block" if req.blocked else "unblock"
     await log_admin_action(admin.get("sub"), action, f"Пользователь {user_id} {action}")
 
+    p_name = await get_project_name()
     if req.blocked:
-        await notify_client(user_id, "⛔ Ваш аккаунт в Vault был заблокирован администратором.")
+        await notify_client(user_id, f"⛔ Ваш аккаунт в {p_name} был заблокирован администратором.")
     else:
-        await notify_client(user_id, "✅ Ваш аккаунт в Vault был разблокирован администратором.")
+        await notify_client(user_id, f"✅ Ваш аккаунт в {p_name} был разблокирован администратором.")
 
     return {"success": True, "blocked": req.blocked}
 

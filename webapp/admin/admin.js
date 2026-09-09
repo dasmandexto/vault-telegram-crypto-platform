@@ -33,7 +33,7 @@ async function loadAdminBranding() {
       if (cfg.project_name) {
         document.title = `Admin Panel — ${cfg.project_name}`;
         const logo = document.getElementById("admin-logo");
-        if (logo) logo.textContent = `${cfg.project_name.toLowerCase()}/admin`;
+        if (logo) logo.textContent = `${cfg.project_name}/admin`;
       }
     }
   } catch (e) {}

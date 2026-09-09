@@ -63,7 +63,7 @@ async function loadConfig() {
         document.title = `${cfg.project_name} — Crypto Wallet`;
         const logoEl = document.getElementById("topbar-logo");
         if (logoEl) {
-          logoEl.innerHTML = `${escapeHtml(cfg.project_name.toLowerCase())}<span>.</span>`;
+          logoEl.textContent = cfg.project_name;
         }
         const fallbackTitle = document.getElementById("fallback-wallet-title");
         if (fallbackTitle) {

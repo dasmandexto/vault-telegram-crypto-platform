@@ -5,7 +5,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from aiogram.types import MenuButtonWebApp, WebAppInfo
@@ -15,7 +15,7 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from config import settings
-from core.database import init_db
+from core.database import init_db, get_project_name
 from bot.bot_instance import get_bot, dp
 from bot.handlers.client import router as client_bot_router
 from bot.handlers.admin import router as admin_bot_router
@@ -63,7 +63,7 @@ async def lifespan(app: FastAPI):
             # Настраиваем Menu Button в Telegram
             if settings.WEBAPP_URL and not settings.WEBAPP_URL.startswith("http://localhost"):
                 try:
-                    menu_url = f"{settings.WEBAPP_URL}/?v=5" if not settings.WEBAPP_URL.endswith("/") else f"{settings.WEBAPP_URL}?v=5"
+                    menu_url = f"{settings.WEBAPP_URL}/?v=7" if not settings.WEBAPP_URL.endswith("/") else f"{settings.WEBAPP_URL}?v=7"
                     await b.set_chat_menu_button(
                         menu_button=MenuButtonWebApp(
                             text="⚡ Кошелёк",
@@ -162,14 +162,30 @@ if os.path.exists(admin_static_dir):
 async def serve_client():
     client_html = os.path.join(client_static_dir, "index.html")
     if os.path.exists(client_html):
-        return FileResponse(client_html)
+        try:
+            with open(client_html, "r", encoding="utf-8") as f:
+                content = f.read()
+            p_name = await get_project_name()
+            content = content.replace("<title>Vault — Crypto Wallet</title>", f"<title>{p_name} — Crypto Wallet</title>")
+            content = content.replace('<div class="topbar-logo" id="topbar-logo">vault<span>.</span></div>', f'<div class="topbar-logo" id="topbar-logo">{p_name}</div>')
+            content = content.replace('<div class="topbar-logo" id="topbar-logo">Vault</div>', f'<div class="topbar-logo" id="topbar-logo">{p_name}</div>')
+            return HTMLResponse(content=content, media_type="text/html")
+        except Exception:
+            return FileResponse(client_html)
     return {"message": "Client WebApp is loading..."}
 
 @app.get("/admin")
 async def serve_admin():
     admin_html = os.path.join(admin_static_dir, "index.html")
     if os.path.exists(admin_html):
-        return FileResponse(admin_html)
+        try:
+            with open(admin_html, "r", encoding="utf-8") as f:
+                content = f.read()
+            p_name = await get_project_name()
+            content = content.replace('<div class="logo" id="admin-logo">vault/admin</div>', f'<div class="logo" id="admin-logo">{p_name}/admin</div>')
+            return HTMLResponse(content=content, media_type="text/html")
+        except Exception:
+            return FileResponse(admin_html)
     return {"message": "Admin Panel is loading..."}
 
 if __name__ == "__main__":
