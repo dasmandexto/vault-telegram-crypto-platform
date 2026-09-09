@@ -100,6 +100,12 @@ async function loadDashboard() {
     document.getElementById("stat-blocked").textContent = stats.blocked_users;
     document.getElementById("hdr-pending-num").textContent = stats.pending_tx;
 
+    const navBadge = document.getElementById("nav-pending-badge");
+    if (navBadge) {
+      navBadge.textContent = stats.pending_tx;
+      navBadge.style.display = stats.pending_tx > 0 ? "flex" : "none";
+    }
+
     await loadPendingTransfers();
   } catch (e) {
     console.error("Dashboard stats error:", e);
@@ -748,24 +754,51 @@ async function resetWelcomeSettings() {
 }
 
 // ── NAV & MODALS ──
+function switchSystemTab(tabName) {
+  document.querySelectorAll('.subtab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.system-tab').forEach(t => {
+    t.classList.remove('active');
+    t.style.display = 'none';
+  });
+
+  const btn = document.getElementById('subtab-btn-' + tabName);
+  if (btn) btn.classList.add('active');
+
+  const tab = document.getElementById('systab-' + tabName);
+  if (tab) {
+    tab.classList.add('active');
+    tab.style.display = 'block';
+  }
+
+  if (tabName === 'settings') loadSettings();
+  if (tabName === 'hd') loadHdInfo();
+  if (tabName === 'bcast') loadBroadcastHistory();
+}
+
 function switchPage(name) {
+  const systemTabs = ['settings', 'hd', 'bcast', 'api'];
+  if (systemTabs.includes(name)) {
+    switchPage('system');
+    switchSystemTab(name);
+    return;
+  }
+
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.top-nav-btn').forEach(b => b.classList.remove('active'));
 
   const pg = document.getElementById('page-' + name);
   if (pg) pg.classList.add('active');
   const nb = document.getElementById('nav-' + name);
   if (nb) nb.classList.add('active');
-  const tnb = document.getElementById('top-nav-' + name);
-  if (tnb) tnb.classList.add('active');
 
   if (name === 'users') loadUsers();
   if (name === 'all-tx') loadAllTransactions();
-  if (name === 'bcast') loadBroadcastHistory();
   if (name === 'dash') loadDashboard();
-  if (name === 'hd') loadHdInfo();
-  if (name === 'settings') loadSettings();
+  if (name === 'system') {
+    const activeBtn = document.querySelector('.subtab-btn.active');
+    const tabName = activeBtn ? activeBtn.id.replace('subtab-btn-', '') : 'settings';
+    switchSystemTab(tabName);
+  }
 }
 
 function openModal(name) {

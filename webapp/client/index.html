@@ -24,7 +24,7 @@
     --red: #ff4d6a;
   }
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html, body { height:100%; background:var(--bg); color:var(--text); font-family:'DM Sans', sans-serif; overflow-x:hidden; }
+  html, body { min-height:100dvh; background:var(--bg); color:var(--text); font-family:'DM Sans', sans-serif; overflow-x:hidden; }
 
   /* ───── GRID BACKGROUND ───── */
   body::before {
@@ -37,7 +37,7 @@
     pointer-events:none; z-index:0;
   }
 
-  .app { position:relative; z-index:1; max-width:440px; margin:0 auto; padding-bottom:90px; min-height:100vh; }
+  .app { position:relative; z-index:1; max-width:440px; margin:0 auto; padding-bottom:calc(64px + env(safe-area-inset-bottom, 0px)); min-height:100dvh; }
 
   /* ───── TOP BAR ───── */
   .topbar {
@@ -175,9 +175,12 @@
     background:var(--surface);
     border-top:1px solid var(--border);
     display:flex;
-    padding:10px 0 20px;
+    padding:6px 0;
+    padding-bottom:max(6px, env(safe-area-inset-bottom, 6px));
     z-index:200;
     backdrop-filter:blur(20px);
+    -webkit-backdrop-filter:blur(20px);
+    box-sizing:border-box;
   }
   .nav-btn { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; padding:6px; transition:all .2s; border:none; background:none; }
   .nav-btn .nav-icon { font-size:20px; }

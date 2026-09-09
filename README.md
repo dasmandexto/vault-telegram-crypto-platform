@@ -27,29 +27,30 @@
 
 ## 🏗 Архитектура платформы
 
-```
-                                  ┌────────────────────────┐
-                                  │   Telegram User Client │
-                                  └───────────┬────────────┘
-                                              │ Telegram WebApp (initData)
-                                              ▼
-┌────────────────────────────────────────────────────────────────────────────────┐
-│                           FASTAPI CORE BACKEND ENGINE                          │
-│                                                                                │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────────────┐  │
-│  │  SPOT & FUTURES  │  │  BINARY OPTIONS  │  │   HD MASTER-WALLET (BIP-39)  │  │
-│  │ 1x - 50x Margin  │  │   30s - 180s     │  │ 24-Word Root Seed Engine     │  │
-│  │ Anti-Collision UI│  │ High/Low Engine  │  │ Zero-gas Derivation (10 Coins│  │
-│  └──────────────────┘  └──────────────────┘  └──────────────────────────────┘  │
-└─────────────────────────────────────┬──────────────────────────────────────────┘
-                                      │
-              ┌───────────────────────┴───────────────────────┐
-              ▼                                               ▼
-┌───────────────────────────┐                   ┌───────────────────────────┐
-│   Aiogram 3 Bot Service   │                   │    GOD Mode Admin Panel   │
-│  Instant Push Notifications│                  │  Private Keys Inspector   │
-│  Inline Transfer Approvals│                   │  Balance Corrections & PnL│
-└───────────────────────────┘                   └───────────────────────────┘
+```mermaid
+flowchart TD
+    Client["📱 Telegram User Client\n(MiniApp Web / Bot)"]
+    Client -->|"Telegram initData / HMAC-SHA256"| Core["⚡ FastAPI Core Backend Engine"]
+
+    subgraph CoreEngine ["ЯДРО СИСТЕМЫ (CORE BACKEND)"]
+        Core --> Trading["📈 Spot & Futures Trading\n(1x-50x Margin · Live PnL)"]
+        Core --> Binary["⏱️ Binary Options Engine\n(30s - 180s Expire)"]
+        Core --> HDWallet["🔑 HD Master-Wallet (BIP-39/44)\n(24 Words · Zero-gas Derivation)"]
+        Core --> Modules["🧩 Plug-and-Play Module Manager\n(Dynamic Routers & Workers)"]
+        Core --> DB[("🗄️ SQLite Database\n(WAL High-Concurrency Mode)")]
+    end
+
+    subgraph Interfaces ["ПАНЕЛИ УПРАВЛЕНИЯ & БОТ"]
+        Core <--> BotService["🤖 Aiogram 3 Bot Service\n(Push Notifications & /settings)"]
+        Core <--> AdminPanel["👑 GOD Mode Admin Panel\n(Private Keys & Balances)"]
+    end
+
+    classDef core fill:#141820,stroke:#f0b429,stroke-width:2px,color:#fff;
+    classDef client fill:#00e5a0,stroke:#00e5a0,stroke-width:1px,color:#000;
+    classDef iface fill:#1a202c,stroke:#3b82f6,stroke-width:1px,color:#fff;
+    class Client client;
+    class Core,Trading,Binary,HDWallet,Modules,DB core;
+    class BotService,AdminPanel iface;
 ```
 
 ---

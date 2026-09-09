@@ -25,7 +25,7 @@
     --muted2: #8892a4;
   }
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html, body { height:100%; background:var(--bg); color:var(--text); font-family:'DM Sans', sans-serif; overflow-x:hidden; }
+  html, body { min-height:100dvh; background:var(--bg); color:var(--text); font-family:'DM Sans', sans-serif; overflow-x:hidden; }
 
   /* scanline effect */
   body::after {
@@ -43,7 +43,7 @@
     pointer-events:none; z-index:0;
   }
 
-  .app { position:relative; z-index:1; max-width:480px; margin:0 auto; padding-bottom:100px; min-height:100vh; }
+  .app { position:relative; z-index:1; max-width:480px; margin:0 auto; padding-bottom:calc(64px + env(safe-area-inset-bottom, 0px)); min-height:100dvh; }
 
   /* ─── HEADER ─── */
   .header {
@@ -167,10 +167,13 @@
     width:100%; max-width:480px;
     background:var(--surface);
     border-top:1px solid rgba(240,180,41,0.1);
-    display:flex; padding:10px 0 22px;
+    display:flex; padding:6px 0;
+    padding-bottom:max(6px, env(safe-area-inset-bottom, 6px));
     z-index:200; backdrop-filter:blur(20px);
+    -webkit-backdrop-filter:blur(20px);
+    box-sizing:border-box;
   }
-  .nav-btn { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; padding:6px; background:none; border:none; }
+  .nav-btn { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; padding:6px; background:none; border:none; position:relative; }
   .nav-btn .nav-icon { font-size:18px; }
   .nav-btn .nav-label { font-size:10px; color:var(--muted); font-weight:500; }
   .nav-btn.active .nav-label { color:var(--accent); }
@@ -287,8 +290,10 @@
   .ep-path { font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--muted2); flex:1; }
   .ep-desc { font-size:10px; color:var(--muted); line-height:1.4; }
 
-  /* ─── TOP NAV TABS ─── */
-  .top-nav-btn {
+  /* ─── SYSTEM SUB TABS ─── */
+  .system-tab { display:none; }
+  .system-tab.active { display:block; }
+  .subtab-btn {
     padding: 8px 14px;
     border-radius: 10px;
     border: 1px solid var(--border2);
@@ -301,10 +306,29 @@
     transition: all .2s;
     font-family: 'DM Sans', sans-serif;
   }
-  .top-nav-btn.active {
+  .subtab-btn.active {
     background: rgba(240,180,41,0.15);
     border-color: var(--accent);
     color: var(--accent);
+  }
+
+  .badge-counter {
+    position: absolute;
+    top: 2px;
+    right: calc(50% - 18px);
+    background: var(--accent2);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    font-family: 'IBM Plex Mono', monospace;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    box-shadow: 0 2px 6px rgba(232,93,4,0.5);
   }
 </style>
 </head>
@@ -323,15 +347,7 @@
     </div>
   </div>
 
-  <!-- TOP NAVIGATION MENU (ВИДЕН ВСЕГДА ВВЕРХУ ЭКРАНА) -->
-  <div style="display:flex; gap:6px; overflow-x:auto; padding:10px 16px; background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:57px; z-index:90; backdrop-filter:blur(16px); scrollbar-width:none;">
-    <button class="top-nav-btn active" id="top-nav-dash" onclick="switchPage('dash')">📊 Главная</button>
-    <button class="top-nav-btn" id="top-nav-hd" onclick="switchPage('hd')" style="background:rgba(240,180,41,0.2); border-color:var(--accent); color:var(--accent); font-weight:700;">🔑 HD-Кошелек (Сид)</button>
-    <button class="top-nav-btn" id="top-nav-users" onclick="switchPage('users')">👥 Юзеры</button>
-    <button class="top-nav-btn" id="top-nav-all-tx" onclick="switchPage('all-tx')">🔄 Транзакции</button>
-    <button class="top-nav-btn" id="top-nav-bcast" onclick="switchPage('bcast')">📢 Рассылка</button>
-    <button class="top-nav-btn" id="top-nav-settings" onclick="switchPage('settings')">⚙️ Настройки</button>
-  </div>
+
 
   <!-- ════ PAGE: DASHBOARD ════ -->
   <div class="page active" id="page-dash">
@@ -427,166 +443,178 @@
     </div>
   </div>
 
-  <!-- ════ PAGE: BROADCAST ════ -->
-  <div class="page" id="page-bcast">
-    <div class="section" style="padding-top:16px">
-      <div class="section-header">
-        <div class="section-title">Рассылка в Telegram</div>
-      </div>
-
-      <div class="bcast-box">
-        <div class="bcast-header">📢 Новое сообщение</div>
-        <div class="input-group">
-          <label class="input-label">Аудитория</label>
-          <select class="input-field" id="bcast-target">
-            <option value="all">Все пользователи</option>
-            <option value="positive_balance">С балансом > $0</option>
-          </select>
-        </div>
-        <div class="input-group">
-          <label class="input-label">Текст сообщения</label>
-          <textarea class="input-field" id="bcast-text" rows="4" placeholder="Введите текст объявления..."></textarea>
-        </div>
-        <button class="btn-gold" onclick="sendBroadcast()">📤 Отправить рассылку</button>
-      </div>
-
-      <div class="section-header" style="margin-top:20px">
-        <div class="section-title">История рассылок</div>
-      </div>
-      <div id="bcast-history-list">
-        <!-- История -->
+  <!-- ════ PAGE: SYSTEM (SETTINGS, HD WALLET, BROADCAST, API) ════ -->
+  <div class="page" id="page-system">
+    <div style="padding-top:16px; margin-bottom:14px;">
+      <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:6px; -webkit-overflow-scrolling:touch; scrollbar-width:none;">
+        <button class="subtab-btn active" id="subtab-btn-settings" onclick="switchSystemTab('settings')">⚙️ Настройки</button>
+        <button class="subtab-btn" id="subtab-btn-hd" onclick="switchSystemTab('hd')">🔑 HD-Кошелек</button>
+        <button class="subtab-btn" id="subtab-btn-bcast" onclick="switchSystemTab('bcast')">📢 Рассылка</button>
+        <button class="subtab-btn" id="subtab-btn-api" onclick="switchSystemTab('api')">📡 API</button>
       </div>
     </div>
-  </div>
 
-  <!-- ════ PAGE: HD MASTER WALLET ════ -->
-  <div class="page" id="page-hd">
-    <div class="section" style="padding-top:16px">
-      <div class="section-header">
-        <div class="section-title">HD Master-Wallet (BIP-39 / BIP-44)</div>
-        <button class="section-action" onclick="exportHdKeysCsv()">📥 Экспорт ключей (CSV)</button>
-      </div>
-
-      <!-- MASTER INFO CARD -->
-      <div class="stat-card gold" style="margin-bottom:14px;">
-        <div class="s-label">Статус Мастер-Кошелька</div>
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <span style="font-family:'IBM Plex Mono', monospace; font-size:13px; font-weight:700; color:var(--green);">● АКТИВЕН (BIP-39 24 Слова)</span>
-          <span style="font-size:11px; color:var(--muted); font-family:'IBM Plex Mono', monospace;" id="hd-fingerprint">ID: ----</span>
+    <!-- SUBTAB: SETTINGS -->
+    <div class="system-tab active" id="systab-settings">
+      <div class="section">
+        <div class="section-header">
+          <div class="section-title">⚙️ Настройки платформы и бота</div>
         </div>
-        <div style="background:rgba(0,0,0,0.4); border:1px solid rgba(240,180,41,0.2); border-radius:10px; padding:12px; margin-top:8px;">
-          <div style="font-size:11px; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between;">
-            <span>Мастер-сид фраза (Mnemonic):</span>
-            <span style="color:var(--accent); cursor:pointer; font-weight:700;" onclick="revealMasterMnemonic()" id="hd-reveal-btn">Показать фразу 👁</span>
+
+        <div class="bcast-box" style="margin-bottom:14px;">
+          <div class="bcast-header">🏷️ Основные параметры</div>
+          
+          <div class="input-group">
+            <label class="input-label">Название платформы / кошелька</label>
+            <input class="input-field" id="settings-project-name" placeholder="Vault" oninput="updateWelcomePreview()" />
+            <div style="font-size:10px; color:var(--muted); margin-top:4px;">
+              Отображается в заголовке сайта, шапке кошелька и всех сообщениях бота.
+            </div>
           </div>
-          <div id="hd-mnemonic-display" style="font-family:'IBM Plex Mono', monospace; font-size:12px; color:#fff; word-break:break-word; line-height:1.5;">
-            Загрузка...
+
+          <div class="input-group">
+            <label class="input-label">Контакт технической поддержки</label>
+            <input class="input-field" id="settings-support-contact" placeholder="@SupportBot или https://t.me/..." />
+            <div style="font-size:10px; color:var(--muted); margin-top:4px;">
+              Указывается в боте и на страницах помощи клиентам.
+            </div>
           </div>
-        </div>
-        <div class="s-sub" style="margin-top:10px; font-size:11px; color:var(--muted2);">
-          💡 Все клиентские адреса деривируются по стандарту BIP-44/84. Приватные ключи доступны вам напрямую.
-        </div>
-      </div>
 
-      <!-- USER KEYS INSPECTOR -->
-      <div class="bcast-box" style="margin-bottom:16px;">
-        <div class="bcast-header">🔍 Инспектор ключей пользователя</div>
-        <div style="display:flex; gap:8px; margin-top:8px;">
-          <input class="input-field" id="hd-user-input" placeholder="Telegram ID пользователя (напр. 123456789)" style="margin-bottom:0;">
-          <button class="btn-gold" style="width:auto; padding:0 16px; white-space:nowrap;" onclick="inspectUserHdKeys()">Рассчитать</button>
-        </div>
-        <div id="hd-user-keys-result" style="margin-top:12px;"></div>
-      </div>
-    </div>
-  </div>
+          <div class="input-group">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <label class="input-label" style="margin-bottom:0;">Текст приветствия бота (/start)</label>
+              <button class="section-action" onclick="resetWelcomeSettings()" style="padding:2px 8px; font-size:10px;">🔄 Сбросить</button>
+            </div>
+            <textarea class="input-field" id="settings-welcome-text" rows="7" placeholder="Оставьте пустым для стандартного приветствия..." oninput="updateWelcomePreview()"></textarea>
+            <div style="font-size:10px; color:var(--muted); margin-top:4px; line-height:1.4;">
+              💡 Переменные: <code>{name}</code> — Имя, <code>{username}</code> — Юзернейм, <code>{project_name}</code> — Название проекта.<br>
+              Поддерживается HTML (<b>жирный</b>, <i>курсив</i>, <code>код</code>).
+            </div>
+          </div>
 
-  <!-- ════ PAGE: SETTINGS ════ -->
-  <div class="page" id="page-settings">
-    <div class="section" style="padding-top:16px">
-      <div class="section-header">
-        <div class="section-title">⚙️ Настройки платформы и бота</div>
-      </div>
-
-      <div class="bcast-box" style="margin-bottom:14px;">
-        <div class="bcast-header">🏷️ Основные параметры</div>
-        
-        <div class="input-group">
-          <label class="input-label">Название платформы / кошелька</label>
-          <input class="input-field" id="settings-project-name" placeholder="Vault" oninput="updateWelcomePreview()" />
-          <div style="font-size:10px; color:var(--muted); margin-top:4px;">
-            Отображается в заголовке сайта, шапке кошелька и всех сообщениях бота.
+          <div style="margin-top:16px;">
+            <button class="btn-gold" onclick="saveSettings()" style="width:100%;">💾 Сохранить настройки</button>
           </div>
         </div>
 
-        <div class="input-group">
-          <label class="input-label">Контакт технической поддержки</label>
-          <input class="input-field" id="settings-support-contact" placeholder="@SupportBot или https://t.me/..." />
-          <div style="font-size:10px; color:var(--muted); margin-top:4px;">
-            Указывается в боте и на страницах помощи клиентам.
+        <!-- LIVE PREVIEW CARD -->
+        <div class="stat-card gold" style="margin-bottom:20px;">
+          <div class="s-label">Предпросмотр приветствия (/start)</div>
+          <div id="settings-welcome-preview" style="white-space:pre-wrap; font-size:12px; line-height:1.5; color:var(--text); background:rgba(0,0,0,0.3); padding:12px; border-radius:8px; border:1px solid var(--border); margin-top:8px;">
+            Загрузка предпросмотра...
           </div>
-        </div>
-
-        <div class="input-group">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-            <label class="input-label" style="margin-bottom:0;">Текст приветствия бота (/start)</label>
-            <button class="section-action" onclick="resetWelcomeSettings()" style="padding:2px 8px; font-size:10px;">🔄 Сбросить</button>
-          </div>
-          <textarea class="input-field" id="settings-welcome-text" rows="7" placeholder="Оставьте пустым для стандартного приветствия..." oninput="updateWelcomePreview()"></textarea>
-          <div style="font-size:10px; color:var(--muted); margin-top:4px; line-height:1.4;">
-            💡 Переменные: <code>{name}</code> — Имя, <code>{username}</code> — Юзернейм, <code>{project_name}</code> — Название проекта.<br>
-            Поддерживается HTML (<b>жирный</b>, <i>курсив</i>, <code>код</code>).
-          </div>
-        </div>
-
-        <div style="margin-top:16px;">
-          <button class="btn-gold" onclick="saveSettings()" style="width:100%;">💾 Сохранить настройки</button>
-        </div>
-      </div>
-
-      <!-- LIVE PREVIEW CARD -->
-      <div class="stat-card gold" style="margin-bottom:20px;">
-        <div class="s-label">Предпросмотр приветствия (/start)</div>
-        <div id="settings-welcome-preview" style="white-space:pre-wrap; font-size:12px; line-height:1.5; color:var(--text); background:rgba(0,0,0,0.3); padding:12px; border-radius:8px; border:1px solid var(--border); margin-top:8px;">
-          Загрузка предпросмотра...
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- ════ PAGE: API ENDPOINTS ════ -->
-  <div class="page" id="page-api">
-    <div class="section" style="padding-top:16px">
-      <div class="section-header">
-        <div class="section-title">API Endpoints (FastAPI)</div>
+    <!-- SUBTAB: HD MASTER WALLET -->
+    <div class="system-tab" id="systab-hd">
+      <div class="section">
+        <div class="section-header">
+          <div class="section-title">HD Master-Wallet (BIP-39 / BIP-44)</div>
+          <button class="section-action" onclick="exportHdKeysCsv()">📥 Экспорт ключей (CSV)</button>
+        </div>
+
+        <!-- MASTER INFO CARD -->
+        <div class="stat-card gold" style="margin-bottom:14px;">
+          <div class="s-label">Статус Мастер-Кошелька</div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <span style="font-family:'IBM Plex Mono', monospace; font-size:13px; font-weight:700; color:var(--green);">● АКТИВЕН (BIP-39 24 Слова)</span>
+            <span style="font-size:11px; color:var(--muted); font-family:'IBM Plex Mono', monospace;" id="hd-fingerprint">ID: ----</span>
+          </div>
+          <div style="background:rgba(0,0,0,0.4); border:1px solid rgba(240,180,41,0.2); border-radius:10px; padding:12px; margin-top:8px;">
+            <div style="font-size:11px; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between;">
+              <span>Мастер-сид фраза (Mnemonic):</span>
+              <span style="color:var(--accent); cursor:pointer; font-weight:700;" onclick="revealMasterMnemonic()" id="hd-reveal-btn">Показать фразу 👁</span>
+            </div>
+            <div id="hd-mnemonic-display" style="font-family:'IBM Plex Mono', monospace; font-size:12px; color:#fff; word-break:break-word; line-height:1.5;">
+              Загрузка...
+            </div>
+          </div>
+          <div class="s-sub" style="margin-top:10px; font-size:11px; color:var(--muted2);">
+            💡 Все клиентские адреса деривируются по стандарту BIP-44/84. Приватные ключи доступны вам напрямую.
+          </div>
+        </div>
+
+        <!-- USER KEYS INSPECTOR -->
+        <div class="bcast-box" style="margin-bottom:16px;">
+          <div class="bcast-header">🔍 Инспектор ключей пользователя</div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <input class="input-field" id="hd-user-input" placeholder="Telegram ID пользователя (напр. 123456789)" style="margin-bottom:0;">
+            <button class="btn-gold" style="width:auto; padding:0 16px; white-space:nowrap;" onclick="inspectUserHdKeys()">Рассчитать</button>
+          </div>
+          <div id="hd-user-keys-result" style="margin-top:12px;"></div>
+        </div>
       </div>
     </div>
 
-    <div class="ep-legend">
-      <div class="ep-legend-title">👤 Пользователи</div>
-      <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/user/me</div><div class="ep-desc">Профиль текущего юзера (по initData)</div></div></div>
-      <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/wallet/address?coin=</div><div class="ep-desc">Адрес кошелька + QR (устанавливается админом)</div></div></div>
-      <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/wallet/balances</div><div class="ep-desc">Баланс по каждой из 10 монет</div></div></div>
-      <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/transactions</div><div class="ep-desc">История транзакций пользователя</div></div></div>
+    <!-- SUBTAB: BROADCAST -->
+    <div class="system-tab" id="systab-bcast">
+      <div class="section">
+        <div class="section-header">
+          <div class="section-title">Рассылка в Telegram</div>
+        </div>
+
+        <div class="bcast-box">
+          <div class="bcast-header">📢 Новое сообщение</div>
+          <div class="input-group">
+            <label class="input-label">Аудитория</label>
+            <select class="input-field" id="bcast-target">
+              <option value="all">Все пользователи</option>
+              <option value="positive_balance">С балансом > $0</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label class="input-label">Текст сообщения</label>
+            <textarea class="input-field" id="bcast-text" rows="4" placeholder="Введите текст объявления..."></textarea>
+          </div>
+          <button class="btn-gold" onclick="sendBroadcast()">📤 Отправить рассылку</button>
+        </div>
+
+        <div class="section-header" style="margin-top:20px">
+          <div class="section-title">История рассылок</div>
+        </div>
+        <div id="bcast-history-list">
+          <!-- История -->
+        </div>
+      </div>
     </div>
 
-    <div class="ep-legend">
-      <div class="ep-legend-title">🛠 Админ — Пользователи и Кошельки</div>
-      <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/admin/users?page=&search=</div><div class="ep-desc">Список юзеров с балансами</div></div></div>
-      <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/admin/users/:id</div><div class="ep-desc">Детали юзера: 10 кошельков, история</div></div></div>
-      <div class="ep-row"><span class="ep-method PATCH">PATCH</span><div><div class="ep-path">/api/admin/users/:id/wallet</div><div class="ep-desc">Установить адрес { coin, address, memo }</div></div></div>
-      <div class="ep-row"><span class="ep-method PATCH">PATCH</span><div><div class="ep-path">/api/admin/users/:id/balance</div><div class="ep-desc">Скорректировать баланс { coin, amount, operation }</div></div></div>
-      <div class="ep-row"><span class="ep-method PATCH">PATCH</span><div><div class="ep-path">/api/admin/users/:id/block</div><div class="ep-desc">Заблокировать / разблокировать { blocked }</div></div></div>
-    </div>
+    <!-- SUBTAB: API ENDPOINTS -->
+    <div class="system-tab" id="systab-api">
+      <div class="section">
+        <div class="section-header">
+          <div class="section-title">API Endpoints (FastAPI)</div>
+        </div>
+      </div>
 
-    <div class="ep-legend">
-      <div class="ep-legend-title">⚡ Админ — Переводы и Экспорт</div>
-      <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/admin/transactions?status=pending</div><div class="ep-desc">Ожидающие заявки</div></div></div>
-      <div class="ep-row"><span class="ep-method POST">POST</span><div><div class="ep-path">/api/admin/transfer/:id/approve</div><div class="ep-desc">Подтвердить перевод { tx_hash }</div></div></div>
-      <div class="ep-row"><span class="ep-method POST">POST</span><div><div class="ep-path">/api/admin/transfer/:id/reject</div><div class="ep-desc">Отклонить { reason }</div></div></div>
-      <div class="ep-row"><span class="ep-method POST">POST</span><div><div class="ep-path">/api/admin/transfer/manual</div><div class="ep-desc">Ручной перевод { user_id, coin, amount, direction }</div></div></div>
-      <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/admin/export/transactions</div><div class="ep-desc">Экспорт в CSV</div></div></div>
+      <div class="ep-legend">
+        <div class="ep-legend-title">👤 Пользователи</div>
+        <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/user/me</div><div class="ep-desc">Профиль текущего юзера (по initData)</div></div></div>
+        <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/wallet/address?coin=</div><div class="ep-desc">Адрес кошелька + QR (устанавливается админом)</div></div></div>
+        <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/wallet/balances</div><div class="ep-desc">Баланс по каждой из 10 монет</div></div></div>
+        <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/transactions</div><div class="ep-desc">История транзакций пользователя</div></div></div>
+      </div>
+
+      <div class="ep-legend">
+        <div class="ep-legend-title">🛠 Админ — Пользователи и Кошельки</div>
+        <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/admin/users?page=&search=</div><div class="ep-desc">Список юзеров с балансами</div></div></div>
+        <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/admin/users/:id</div><div class="ep-desc">Детали юзера: 10 кошельков, история</div></div></div>
+        <div class="ep-row"><span class="ep-method PATCH">PATCH</span><div><div class="ep-path">/api/admin/users/:id/wallet</div><div class="ep-desc">Установить адрес { coin, address, memo }</div></div></div>
+        <div class="ep-row"><span class="ep-method PATCH">PATCH</span><div><div class="ep-path">/api/admin/users/:id/balance</div><div class="ep-desc">Скорректировать баланс { coin, amount, operation }</div></div></div>
+        <div class="ep-row"><span class="ep-method PATCH">PATCH</span><div><div class="ep-path">/api/admin/users/:id/block</div><div class="ep-desc">Заблокировать / разблокировать { blocked }</div></div></div>
+      </div>
+
+      <div class="ep-legend">
+        <div class="ep-legend-title">⚡ Админ — Переводы и Экспорт</div>
+        <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/admin/transactions?status=pending</div><div class="ep-desc">Ожидающие заявки</div></div></div>
+        <div class="ep-row"><span class="ep-method POST">POST</span><div><div class="ep-path">/api/admin/transfer/:id/approve</div><div class="ep-desc">Подтвердить перевод { tx_hash }</div></div></div>
+        <div class="ep-row"><span class="ep-method POST">POST</span><div><div class="ep-path">/api/admin/transfer/:id/reject</div><div class="ep-desc">Отклонить { reason }</div></div></div>
+        <div class="ep-row"><span class="ep-method POST">POST</span><div><div class="ep-path">/api/admin/transfer/manual</div><div class="ep-desc">Ручной перевод { user_id, coin, amount, direction }</div></div></div>
+        <div class="ep-row"><span class="ep-method GET">GET</span><div><div class="ep-path">/api/admin/export/transactions</div><div class="ep-desc">Экспорт в CSV</div></div></div>
+      </div>
     </div>
-  </div>
+  </div><!-- /page-system -->
 
 </div><!-- /app -->
 
@@ -594,31 +622,20 @@
 <div class="nav">
   <button class="nav-btn active" id="nav-dash" onclick="switchPage('dash')">
     <span class="nav-icon">⚡</span>
-    <span class="nav-label">Дашборд</span>
+    <span class="nav-label">Главная</span>
+  </button>
+  <button class="nav-btn" id="nav-all-tx" onclick="switchPage('all-tx')">
+    <span class="nav-icon">⏳</span>
+    <span class="badge-counter" id="nav-pending-badge" style="display:none;">0</span>
+    <span class="nav-label">Заявки</span>
   </button>
   <button class="nav-btn" id="nav-users" onclick="switchPage('users')">
     <span class="nav-icon">👥</span>
     <span class="nav-label">Юзеры</span>
   </button>
-  <button class="nav-btn" id="nav-all-tx" onclick="switchPage('all-tx')">
-    <span class="nav-icon">🔄</span>
-    <span class="nav-label">Транзакции</span>
-  </button>
-  <button class="nav-btn" id="nav-hd" onclick="switchPage('hd')">
-    <span class="nav-icon">🔑</span>
-    <span class="nav-label">HD-Кошелек</span>
-  </button>
-  <button class="nav-btn" id="nav-bcast" onclick="switchPage('bcast')">
-    <span class="nav-icon">📢</span>
-    <span class="nav-label">Рассылка</span>
-  </button>
-  <button class="nav-btn" id="nav-settings" onclick="switchPage('settings')">
+  <button class="nav-btn" id="nav-system" onclick="switchPage('system')">
     <span class="nav-icon">⚙️</span>
-    <span class="nav-label">Настройки</span>
-  </button>
-  <button class="nav-btn" id="nav-api" onclick="switchPage('api')">
-    <span class="nav-icon">📡</span>
-    <span class="nav-label">API</span>
+    <span class="nav-label">Система</span>
   </button>
 </div>
 
