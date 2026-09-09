@@ -9,7 +9,7 @@ from config import settings
 
 def get_client_main_keyboard() -> ReplyKeyboardMarkup:
     base = settings.WEBAPP_URL or "https://telegram.org"
-    url = f"{base}/?v=4" if not base.endswith("/") else f"{base}?v=4"
+    url = f"{base}/?v=5" if not base.endswith("/") else f"{base}?v=5"
     kb = [
         [KeyboardButton(text="⚡ Открыть кошелёк", web_app=WebAppInfo(url=url))]
     ]
@@ -17,7 +17,7 @@ def get_client_main_keyboard() -> ReplyKeyboardMarkup:
 
 def get_client_inline_keyboard() -> InlineKeyboardMarkup:
     base = settings.WEBAPP_URL or "https://telegram.org"
-    url = f"{base}/?v=4" if not base.endswith("/") else f"{base}?v=4"
+    url = f"{base}/?v=5" if not base.endswith("/") else f"{base}?v=5"
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💎 Запустить WebApp Кошелек", web_app=WebAppInfo(url=url))]
     ])
