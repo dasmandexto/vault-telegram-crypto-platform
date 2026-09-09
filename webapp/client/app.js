@@ -124,7 +124,7 @@ async function apiRequest(url, options = {}) {
   if (resp.status === 401) {
     localStorage.removeItem("vault_token");
     token = "";
-    init();
+    showToast("Сессия устарела. Пожалуйста, обновите страницу", true);
     throw new Error("Unauthorized");
   }
 
