@@ -672,3 +672,41 @@ async def set_system_setting(key: str, value: str) -> bool:
         """, (key, value, now))
         await db.commit()
         return True
+
+async def delete_system_setting(key: str) -> bool:
+    async with get_db() as db:
+        await db.execute("DELETE FROM system_settings WHERE key = ?", (key,))
+        await db.commit()
+        return True
+
+async def get_project_name() -> str:
+    val = await get_system_setting("project_name")
+    if val and val.strip():
+        return val.strip()
+    return getattr(settings, "PROJECT_NAME", "Vault") or "Vault"
+
+async def get_welcome_text(first_name: str = "", username: str = "") -> str:
+    custom = await get_system_setting("welcome_text")
+    p_name = await get_project_name()
+    safe_name = first_name or username or "пользователь"
+    
+    if custom and custom.strip():
+        # Подставляем переменные в кастомный текст
+        res = custom.replace("{name}", safe_name).replace("{first_name}", safe_name)
+        res = res.replace("{username}", f"@{username}" if username else safe_name)
+        res = res.replace("{project_name}", p_name)
+        return res
+
+    # Стандартный шаблон по умолчанию
+    return (
+        f"👋 Здравствуйте, <b>{safe_name}</b>!\n\n"
+        f"Добро пожаловать в мультивалютный криптокошелек <b>{p_name}</b>.\n\n"
+        f"⚡ <b>Доступные возможности:</b>\n"
+        f"• Хранение и операции с 10 топ-криптовалютами (BTC, ETH, USDT, TON, SOL, BNB, TRX, XRP, DOGE, USDC)\n"
+        f"• Присвоение персональных адресов для пополнения\n"
+        f"• Быстрый вывод и переводы средств\n"
+        f"• Внутренний обмен валют\n"
+        f"• Прозрачная история транзакций\n\n"
+        f"Нажмите кнопку ниже, чтобы открыть кошелек 👇"
+    )
+

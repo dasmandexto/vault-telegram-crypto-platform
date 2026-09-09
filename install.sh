@@ -43,9 +43,13 @@ echo -e "${BLUE}[*] Рабочая директория:${NC} $PROJECT_DIR"
 # 2. Интерактивный опрос пользователя
 echo -e "\n${PURPLE}${BOLD}--- Шаг 1: Конфигурация приложения ---${NC}\n"
 
+# Wallet / Platform Name
+read -rp "$(echo -e "${CYAN}1. Введите название кошелька [Vault]: ${NC}")" PROJECT_NAME
+PROJECT_NAME=${PROJECT_NAME:-Vault}
+
 # Telegram Bot Token
 while true; do
-  read -rp "$(echo -e "${CYAN}1. Введите Telegram Bot Token (от @BotFather): ${NC}")" BOT_TOKEN
+  read -rp "$(echo -e "${CYAN}2. Введите Telegram Bot Token (от @BotFather): ${NC}")" BOT_TOKEN
   BOT_TOKEN=$(echo "$BOT_TOKEN" | tr -d '[:space:]')
   if [ -n "$BOT_TOKEN" ]; then
     break
@@ -56,7 +60,7 @@ done
 
 # Admin Telegram ID
 while true; do
-  read -rp "$(echo -e "${CYAN}2. Введите ваш Telegram User ID (из @userinfobot): ${NC}")" ADMIN_IDS
+  read -rp "$(echo -e "${CYAN}3. Введите ваш Telegram User ID (из @userinfobot): ${NC}")" ADMIN_IDS
   ADMIN_IDS=$(echo "$ADMIN_IDS" | tr -d '[:space:]')
   if [ -n "$ADMIN_IDS" ]; then
     break
@@ -66,16 +70,16 @@ while true; do
 done
 
 # Admin Password
-read -rp "$(echo -e "${CYAN}3. Задайте пароль для входа в веб-панель администратора [admin12345]: ${NC}")" ADMIN_PASSWORD
+read -rp "$(echo -e "${CYAN}4. Задайте пароль для входа в веб-панель администратора [admin12345]: ${NC}")" ADMIN_PASSWORD
 ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin12345}
 
 # Server Port
-read -rp "$(echo -e "${CYAN}4. Порт внутреннего сервера FastAPI [8000]: ${NC}")" SERVER_PORT
+read -rp "$(echo -e "${CYAN}5. Порт внутреннего сервера FastAPI [8000]: ${NC}")" SERVER_PORT
 SERVER_PORT=${SERVER_PORT:-8000}
 
 # Domain / WebApp URL
 echo -e "\n${YELLOW}[!] Внимание: Telegram WebApp требует обязательный HTTPS протокол!${NC}"
-read -rp "$(echo -e "${CYAN}5. Введите ваш домен (например, wallet.mydomain.com) или оставьте пустым: ${NC}")" DOMAIN_NAME
+read -rp "$(echo -e "${CYAN}6. Введите ваш домен (например, wallet.mydomain.com) или оставьте пустым: ${NC}")" DOMAIN_NAME
 DOMAIN_NAME=$(echo "$DOMAIN_NAME" | tr -d '[:space:]')
 
 SETUP_NGINX=false
@@ -83,12 +87,9 @@ WEBAPP_URL="http://localhost:$SERVER_PORT"
 
 if [ -n "$DOMAIN_NAME" ]; then
   WEBAPP_URL="https://$DOMAIN_NAME"
-  read -rp "$(echo -e "${CYAN}   Настроить Nginx + бесплатный SSL Let's Encrypt для $DOMAIN_NAME? (y/n) [y]: ${NC}")" NGINX_CONFIRM
-  NGINX_CONFIRM=${NGINX_CONFIRM:-y}
-  if [[ "$NGINX_CONFIRM" =~ ^[Yy]$ ]]; then
-    SETUP_NGINX=true
-    read -rp "$(echo -e "${CYAN}   Введите ваш Email для сертификата SSL: ${NC}")" SSL_EMAIL
-  fi
+  SETUP_NGINX=true
+  read -rp "$(echo -e "${CYAN}   Email для SSL сертификата Let's Encrypt [admin@${DOMAIN_NAME}]: ${NC}")" SSL_EMAIL
+  SSL_EMAIL=${SSL_EMAIL:-admin@${DOMAIN_NAME}}
 else
   echo -e "${YELLOW}Домен не указан. Вы сможете настроить HTTPS позже через Cloudflare Tunnel или reverse proxy.${NC}"
 fi
@@ -108,6 +109,7 @@ fi
 # 4. Создание .env файла
 echo -e "\n${PURPLE}${BOLD}--- Шаг 3: Сохранение настроек (.env) ---${NC}\n"
 cat > "$PROJECT_DIR/.env" <<EOF
+PROJECT_NAME=${PROJECT_NAME}
 BOT_TOKEN=${BOT_TOKEN}
 ADMIN_IDS=${ADMIN_IDS}
 SECRET_KEY=${SECRET_KEY}
@@ -131,11 +133,46 @@ fi
 "$PROJECT_DIR/venv/bin/pip" install -r "$PROJECT_DIR/requirements.txt"
 echo -e "${GREEN}[✓] Все зависимости Python успешно установлены.${NC}"
 
-# 6. Настройка Nginx и SSL (если выбрано)
+# 6. Настройка Nginx и SSL (если выбран домен)
 if [ "$SETUP_NGINX" = true ] && [ -n "$DOMAIN_NAME" ]; then
   echo -e "\n${PURPLE}${BOLD}--- Шаг 5: Настройка веб-сервера Nginx и SSL ---${NC}\n"
   
-  cat > "/etc/nginx/sites-available/crypto-vault" <<EOF
+  # Очищаем старые и конфликтующие сайты (включая default и сайты от других сервисов)
+  rm -f /etc/nginx/sites-enabled/*
+
+  # Проверяем, существует ли уже SSL-сертификат Let's Encrypt для этого домена
+  if [ -f "/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem" ]; then
+    echo -e "${GREEN}[✓] Обнаружен существующий SSL-сертификат для ${DOMAIN_NAME}.${NC}"
+    cat > "/etc/nginx/sites-available/crypto-vault" <<EOF
+server {
+    server_name ${DOMAIN_NAME};
+
+    location / {
+        proxy_pass http://127.0.0.1:${SERVER_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    listen 443 ssl;
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+server {
+    listen 80;
+    server_name ${DOMAIN_NAME};
+    return 301 https://\$host\$request_uri;
+}
+EOF
+  else
+    cat > "/etc/nginx/sites-available/crypto-vault" <<EOF
 server {
     listen 80;
     server_name ${DOMAIN_NAME};
@@ -152,17 +189,19 @@ server {
     }
 }
 EOF
+  fi
 
-  ln -sf /etc/nginx/sites-available/crypto-vault /etc/nginx/sites-enabled/
-  rm -f /etc/nginx/sites-enabled/default
+  ln -sf /etc/nginx/sites-available/crypto-vault /etc/nginx/sites-enabled/crypto-vault
   nginx -t && systemctl restart nginx
 
-  if [ -n "$SSL_EMAIL" ]; then
+  if [ ! -f "/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem" ]; then
     echo -e "${CYAN}Получение бесплатного SSL сертификата от Let's Encrypt...${NC}"
     certbot --nginx -d "$DOMAIN_NAME" --non-interactive --agree-tos -m "$SSL_EMAIL" --redirect || {
       echo -e "${YELLOW}[!] Не удалось автоматически выпустить SSL. Убедитесь, что DNS запись домена указывает на IP этого сервера.${NC}"
     }
+    nginx -t && systemctl restart nginx
   fi
+  echo -e "${GREEN}[✓] Nginx и HTTPS успешно настроены для https://${DOMAIN_NAME}${NC}"
 fi
 
 # 7. Настройка службы systemd (автозапуск 24/7)

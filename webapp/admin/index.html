@@ -315,7 +315,7 @@
   <div class="header">
     <div class="header-left">
       <div class="god-badge">⚡ GOD</div>
-      <div class="logo">vault/admin</div>
+      <div class="logo" id="admin-logo">vault/admin</div>
     </div>
     <div class="header-stat">
       <div class="num" id="hdr-pending-num">0</div>
@@ -330,6 +330,7 @@
     <button class="top-nav-btn" id="top-nav-users" onclick="switchPage('users')">👥 Юзеры</button>
     <button class="top-nav-btn" id="top-nav-all-tx" onclick="switchPage('all-tx')">🔄 Транзакции</button>
     <button class="top-nav-btn" id="top-nav-bcast" onclick="switchPage('bcast')">📢 Рассылка</button>
+    <button class="top-nav-btn" id="top-nav-settings" onclick="switchPage('settings')">⚙️ Настройки</button>
   </div>
 
   <!-- ════ PAGE: DASHBOARD ════ -->
@@ -499,6 +500,59 @@
     </div>
   </div>
 
+  <!-- ════ PAGE: SETTINGS ════ -->
+  <div class="page" id="page-settings">
+    <div class="section" style="padding-top:16px">
+      <div class="section-header">
+        <div class="section-title">⚙️ Настройки платформы и бота</div>
+      </div>
+
+      <div class="bcast-box" style="margin-bottom:14px;">
+        <div class="bcast-header">🏷️ Основные параметры</div>
+        
+        <div class="input-group">
+          <label class="input-label">Название платформы / кошелька</label>
+          <input class="input-field" id="settings-project-name" placeholder="Vault" oninput="updateWelcomePreview()" />
+          <div style="font-size:10px; color:var(--muted); margin-top:4px;">
+            Отображается в заголовке сайта, шапке кошелька и всех сообщениях бота.
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Контакт технической поддержки</label>
+          <input class="input-field" id="settings-support-contact" placeholder="@SupportBot или https://t.me/..." />
+          <div style="font-size:10px; color:var(--muted); margin-top:4px;">
+            Указывается в боте и на страницах помощи клиентам.
+          </div>
+        </div>
+
+        <div class="input-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <label class="input-label" style="margin-bottom:0;">Текст приветствия бота (/start)</label>
+            <button class="section-action" onclick="resetWelcomeSettings()" style="padding:2px 8px; font-size:10px;">🔄 Сбросить</button>
+          </div>
+          <textarea class="input-field" id="settings-welcome-text" rows="7" placeholder="Оставьте пустым для стандартного приветствия..." oninput="updateWelcomePreview()"></textarea>
+          <div style="font-size:10px; color:var(--muted); margin-top:4px; line-height:1.4;">
+            💡 Переменные: <code>{name}</code> — Имя, <code>{username}</code> — Юзернейм, <code>{project_name}</code> — Название проекта.<br>
+            Поддерживается HTML (<b>жирный</b>, <i>курсив</i>, <code>код</code>).
+          </div>
+        </div>
+
+        <div style="margin-top:16px;">
+          <button class="btn-gold" onclick="saveSettings()" style="width:100%;">💾 Сохранить настройки</button>
+        </div>
+      </div>
+
+      <!-- LIVE PREVIEW CARD -->
+      <div class="stat-card gold" style="margin-bottom:20px;">
+        <div class="s-label">Предпросмотр приветствия (/start)</div>
+        <div id="settings-welcome-preview" style="white-space:pre-wrap; font-size:12px; line-height:1.5; color:var(--text); background:rgba(0,0,0,0.3); padding:12px; border-radius:8px; border:1px solid var(--border); margin-top:8px;">
+          Загрузка предпросмотра...
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ════ PAGE: API ENDPOINTS ════ -->
   <div class="page" id="page-api">
     <div class="section" style="padding-top:16px">
@@ -557,6 +611,10 @@
   <button class="nav-btn" id="nav-bcast" onclick="switchPage('bcast')">
     <span class="nav-icon">📢</span>
     <span class="nav-label">Рассылка</span>
+  </button>
+  <button class="nav-btn" id="nav-settings" onclick="switchPage('settings')">
+    <span class="nav-icon">⚙️</span>
+    <span class="nav-label">Настройки</span>
   </button>
   <button class="nav-btn" id="nav-api" onclick="switchPage('api')">
     <span class="nav-icon">📡</span>

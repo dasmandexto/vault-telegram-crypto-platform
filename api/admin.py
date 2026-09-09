@@ -22,7 +22,11 @@ from core.database import (
     create_transaction,
     save_broadcast,
     get_broadcast_history,
-    log_admin_action
+    log_admin_action,
+    get_project_name,
+    get_system_setting,
+    set_system_setting,
+    delete_system_setting
 )
 from core.rates import get_exchange_rates, convert_to_usd
 from bot.notifier import (
@@ -71,6 +75,45 @@ class SendMessageModel(BaseModel):
 class BroadcastModel(BaseModel):
     message: str
     target: str = "all"  # "all", "active", "positive_balance"
+
+class AdminSettingsUpdateModel(BaseModel):
+    project_name: Optional[str] = None
+    welcome_text: Optional[str] = None
+    support_contact: Optional[str] = None
+
+@router.get("/settings")
+async def get_admin_settings(admin: Dict[str, Any] = Depends(get_current_admin)):
+    p_name = await get_project_name()
+    w_text = await get_system_setting("welcome_text")
+    support = await get_system_setting("support_contact")
+    return {
+        "project_name": p_name,
+        "welcome_text": w_text or "",
+        "support_contact": support or ""
+    }
+
+@router.post("/settings")
+async def update_admin_settings(body: AdminSettingsUpdateModel, admin: Dict[str, Any] = Depends(get_current_admin)):
+    admin_id = admin.get("sub", 0)
+    if body.project_name is not None:
+        val = body.project_name.strip()
+        if val:
+            await set_system_setting("project_name", val)
+            await log_admin_action(admin_id, "set_project_name", f"Установлено название: {val}")
+    if body.welcome_text is not None:
+        val = body.welcome_text.strip()
+        if val:
+            await set_system_setting("welcome_text", val)
+            await log_admin_action(admin_id, "set_welcome_text", "Обновлен текст приветствия")
+        else:
+            await delete_system_setting("welcome_text")
+            await log_admin_action(admin_id, "reset_welcome_text", "Сброшен текст приветствия")
+    if body.support_contact is not None:
+        val = body.support_contact.strip()
+        await set_system_setting("support_contact", val)
+        await log_admin_action(admin_id, "set_support_contact", f"Установлен контакт поддержки: {val}")
+
+    return {"status": "ok", "message": "Настройки успешно сохранены"}
 
 @router.get("/stats")
 async def admin_stats(admin: Dict[str, Any] = Depends(get_current_admin)):

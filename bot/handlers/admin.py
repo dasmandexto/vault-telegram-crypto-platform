@@ -10,9 +10,19 @@ from core.database import (
     adjust_balance, 
     set_wallet_address,
     get_user,
-    log_admin_action
+    log_admin_action,
+    get_project_name,
+    get_welcome_text,
+    get_system_setting,
+    set_system_setting,
+    delete_system_setting
 )
-from bot.keyboards import get_admin_webapp_keyboard
+from bot.keyboards import (
+    get_admin_webapp_keyboard,
+    get_admin_menu_keyboard,
+    get_admin_settings_keyboard,
+    get_admin_cancel_keyboard
+)
 from bot.notifier import notify_client_transfer_status, notify_client_wallet_assigned
 
 router = Router(name="admin_router")
@@ -20,9 +30,39 @@ router = Router(name="admin_router")
 class AdminStates(StatesGroup):
     waiting_for_wallet_address = State()
     waiting_for_reject_reason = State()
+    waiting_for_welcome_text = State()
+    waiting_for_project_name = State()
+    waiting_for_support_contact = State()
 
 def is_admin(user_id: int) -> bool:
     return user_id in settings.admin_ids
+
+async def render_admin_menu_text() -> str:
+    p_name = await get_project_name()
+    stats = await get_stats()
+    return (
+        f"⚡ <b>Панель управления {p_name} (GOD MODE)</b>\n\n"
+        f"👥 Всего пользователей: <b>{stats['users_total']}</b>\n"
+        f"⏳ Ожидают обработки транзакций: <b>{stats['pending_tx']}</b>\n"
+        f"🔑 Ожидают кошельков: <b>{stats['pending_wallets']}</b>\n"
+        f"📊 Оборот за 24 часа: <b>${stats['volume_24h']}</b>\n"
+        f"🚫 Заблокировано: <b>{stats['blocked_users']}</b>\n\n"
+        "Выберите действие ниже 👇"
+    )
+
+async def render_settings_text() -> str:
+    p_name = await get_project_name()
+    support = await get_system_setting("support_contact") or "Не указан"
+    custom_welcome = await get_system_setting("welcome_text")
+    welcome_status = "Пользовательский ✏️" if custom_welcome else "Стандартный 📋"
+    
+    return (
+        f"⚙️ <b>Настройки платформы и бота</b>\n\n"
+        f"🏷️ <b>Название проекта:</b> <code>{p_name}</code>\n"
+        f"💬 <b>Контакт поддержки:</b> <code>{support}</code>\n"
+        f"📝 <b>Текст приветствия:</b> <i>{welcome_status}</i>\n\n"
+        "💡 <i>Вы можете настроить название кошелька, текст приветствия (/start) и контакты поддержки.</i>"
+    )
 
 @router.message(Command("admin"))
 async def cmd_admin(message: types.Message):
@@ -30,17 +70,16 @@ async def cmd_admin(message: types.Message):
         await message.answer("⛔ Доступ к панели администратора запрещен.")
         return
 
-    stats = await get_stats()
-    text = (
-        "⚡ <b>Панель управления Vault (GOD MODE)</b>\n\n"
-        f"👥 Всего пользователей: <b>{stats['users_total']}</b>\n"
-        f"⏳ Ожидают обработки транзакций: <b>{stats['pending_tx']}</b>\n"
-        f"🔑 Ожидают кошельков: <b>{stats['pending_wallets']}</b>\n"
-        f"📊 Оборот за 24 часа: <b>${stats['volume_24h']}</b>\n"
-        f"🚫 Заблокировано: <b>{stats['blocked_users']}</b>\n\n"
-        "Откройте полную веб-панель для детального управления 👇"
-    )
-    await message.answer(text, reply_markup=get_admin_webapp_keyboard())
+    text = await render_admin_menu_text()
+    await message.answer(text, reply_markup=get_admin_menu_keyboard())
+
+@router.message(Command("settings"))
+async def cmd_settings(message: types.Message):
+    if not is_admin(message.from_user.id):
+        return
+    text = await render_settings_text()
+    await message.answer(text, reply_markup=get_admin_settings_keyboard())
+
 
 # --- Обработка callback: Одобрение вывода ---
 @router.callback_query(F.data.startswith("tx_approve:"))
@@ -192,3 +231,152 @@ async def process_wallet_address(message: types.Message, state: FSMContext):
         f"Клиенту отправлено уведомление."
     )
     await state.clear()
+
+# --- Настройки бота и платформы ---
+@router.callback_query(F.data == "admin:menu")
+async def callback_admin_menu(callback: types.CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        return
+    await state.clear()
+    text = await render_admin_menu_text()
+    try:
+        await callback.message.edit_text(text, reply_markup=get_admin_menu_keyboard())
+    except Exception:
+        await callback.message.answer(text, reply_markup=get_admin_menu_keyboard())
+    await callback.answer()
+
+@router.callback_query(F.data == "admin:settings")
+async def callback_admin_settings(callback: types.CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        return
+    await state.clear()
+    text = await render_settings_text()
+    try:
+        await callback.message.edit_text(text, reply_markup=get_admin_settings_keyboard())
+    except Exception:
+        await callback.message.answer(text, reply_markup=get_admin_settings_keyboard())
+    await callback.answer()
+
+@router.callback_query(F.data == "admin:cancel_input")
+async def callback_cancel_input(callback: types.CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        return
+    await state.clear()
+    text = await render_settings_text()
+    try:
+        await callback.message.edit_text(f"❌ Ввод отменен.\n\n{text}", reply_markup=get_admin_settings_keyboard())
+    except Exception:
+        await callback.message.answer("❌ Ввод отменен.", reply_markup=get_admin_settings_keyboard())
+    await callback.answer()
+
+@router.callback_query(F.data == "admin:set_name")
+async def callback_set_name(callback: types.CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        return
+    await state.set_state(AdminStates.waiting_for_project_name)
+    current_name = await get_project_name()
+    await callback.message.answer(
+        f"🏷️ <b>Изменение названия проекта</b>\n\n"
+        f"Текущее название: <b>{current_name}</b>\n\n"
+        f"Отправьте новое название платформы в чат (например: <code>CryptoVault</code>):",
+        reply_markup=get_admin_cancel_keyboard()
+    )
+    await callback.answer()
+
+@router.message(AdminStates.waiting_for_project_name)
+async def process_project_name(message: types.Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        return
+    new_name = message.text.strip()
+    if not new_name or len(new_name) > 64:
+        await message.answer("⚠️ Название должно быть длиной от 1 до 64 символов. Попробуйте еще раз:")
+        return
+
+    await set_system_setting("project_name", new_name)
+    await log_admin_action(message.from_user.id, "set_project_name", f"Установлено название: {new_name}")
+    await state.clear()
+    
+    text = await render_settings_text()
+    await message.answer(f"✅ Название проекта изменено на <b>{new_name}</b>!\n\n{text}", reply_markup=get_admin_settings_keyboard())
+
+@router.callback_query(F.data == "admin:set_support")
+async def callback_set_support(callback: types.CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        return
+    await state.set_state(AdminStates.waiting_for_support_contact)
+    current_support = await get_system_setting("support_contact") or "Не указан"
+    await callback.message.answer(
+        f"💬 <b>Контакт технической поддержки</b>\n\n"
+        f"Текущий контакт: <code>{current_support}</code>\n\n"
+        f"Отправьте юзернейм (например: <code>@SupportBot</code>) или ссылку на саппорт:",
+        reply_markup=get_admin_cancel_keyboard()
+    )
+    await callback.answer()
+
+@router.message(AdminStates.waiting_for_support_contact)
+async def process_support_contact(message: types.Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        return
+    contact = message.text.strip()
+    await set_system_setting("support_contact", contact)
+    await log_admin_action(message.from_user.id, "set_support_contact", f"Установлен контакт: {contact}")
+    await state.clear()
+    
+    text = await render_settings_text()
+    await message.answer(f"✅ Контакт поддержки сохранен: <code>{contact}</code>\n\n{text}", reply_markup=get_admin_settings_keyboard())
+
+@router.callback_query(F.data == "admin:set_welcome")
+async def callback_set_welcome(callback: types.CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        return
+    await state.set_state(AdminStates.waiting_for_welcome_text)
+    await callback.message.answer(
+        "📝 <b>Изменение приветственного сообщения</b>\n\n"
+        "Отправьте новый текст приветствия бота для команды /start.\n\n"
+        "Доступные переменные шаблона:\n"
+        "• <code>{name}</code> — Имя пользователя\n"
+        "• <code>{username}</code> — Юзернейм пользователя (@username)\n"
+        "• <code>{project_name}</code> — Текущее название проекта\n\n"
+        "Поддерживается HTML-разметка (<b>жирный</b>, <i>курсив</i>, <code>код</code>).",
+        reply_markup=get_admin_cancel_keyboard()
+    )
+    await callback.answer()
+
+@router.message(AdminStates.waiting_for_welcome_text)
+async def process_welcome_text(message: types.Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        return
+    text_val = message.text.strip()
+    await set_system_setting("welcome_text", text_val)
+    await log_admin_action(message.from_user.id, "set_welcome_text", "Обновлен шаблон приветствия")
+    await state.clear()
+    
+    preview = await get_welcome_text(first_name=message.from_user.first_name or "", username=message.from_user.username or "")
+    text = await render_settings_text()
+    await message.answer(
+        f"✅ Приветственное сообщение успешно обновлено!\n\n"
+        f"<b>Предпросмотр:</b>\n{preview}\n\n{text}",
+        reply_markup=get_admin_settings_keyboard()
+    )
+
+@router.callback_query(F.data == "admin:preview_welcome")
+async def callback_preview_welcome(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        return
+    preview = await get_welcome_text(first_name=callback.from_user.first_name or "", username=callback.from_user.username or "")
+    await callback.message.answer(
+        f"👁️ <b>Предпросмотр приветствия (/start):</b>\n\n{preview}",
+        reply_markup=get_admin_settings_keyboard()
+    )
+    await callback.answer()
+
+@router.callback_query(F.data == "admin:reset_welcome")
+async def callback_reset_welcome(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        return
+    await delete_system_setting("welcome_text")
+    await log_admin_action(callback.from_user.id, "reset_welcome_text", "Сброшен шаблон приветствия к стандартному")
+    text = await render_settings_text()
+    await callback.message.answer(f"🔄 Текст приветствия сброшен к стандартному шаблону.\n\n{text}", reply_markup=get_admin_settings_keyboard())
+    await callback.answer()
+

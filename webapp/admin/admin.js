@@ -25,7 +25,22 @@ async function adminApi(url, options = {}) {
   return resp.json();
 }
 
+async function loadAdminBranding() {
+  try {
+    const res = await fetch("/api/config");
+    if (res.ok) {
+      const cfg = await res.json();
+      if (cfg.project_name) {
+        document.title = `Admin Panel — ${cfg.project_name}`;
+        const logo = document.getElementById("admin-logo");
+        if (logo) logo.textContent = `${cfg.project_name.toLowerCase()}/admin`;
+      }
+    }
+  } catch (e) {}
+}
+
 async function initAdmin() {
+  await loadAdminBranding();
   // Пытаемся автоматически авторизоваться через Telegram initData, если открыто внутри Telegram
   if (!adminToken && tg?.initData) {
     try {
@@ -668,6 +683,70 @@ function exportHdKeysCsv() {
   window.open(`/api/admin/hd/export-keys?token=${adminToken}`, "_blank");
 }
 
+// ── SETTINGS ──
+async function loadSettings() {
+  try {
+    const data = await adminApi("/api/admin/settings");
+    const pNameInput = document.getElementById("settings-project-name");
+    const supportInput = document.getElementById("settings-support-contact");
+    const welcomeInput = document.getElementById("settings-welcome-text");
+
+    if (pNameInput) pNameInput.value = data.project_name || "";
+    if (supportInput) supportInput.value = data.support_contact || "";
+    if (welcomeInput) welcomeInput.value = data.welcome_text || "";
+
+    updateWelcomePreview();
+  } catch (e) {
+    console.error("Load settings error:", e);
+  }
+}
+
+function updateWelcomePreview() {
+  const pName = document.getElementById("settings-project-name")?.value.trim() || "Vault";
+  const custom = document.getElementById("settings-welcome-text")?.value.trim();
+  const previewEl = document.getElementById("settings-welcome-preview");
+  if (!previewEl) return;
+
+  if (custom) {
+    let t = custom.replace(/{name}/g, "Иван").replace(/{first_name}/g, "Иван");
+    t = t.replace(/{username}/g, "@ivan_crypto");
+    t = t.replace(/{project_name}/g, pName);
+    previewEl.innerHTML = t;
+  } else {
+    previewEl.innerHTML = `👋 Здравствуйте, <b>Иван</b>!<br><br>Добро пожаловать в мультивалютный криптокошелек <b>${pName}</b>.<br><br>⚡ <b>Доступные возможности:</b><br>• Хранение и операции с 10 топ-криптовалютами (BTC, ETH, USDT, TON, SOL, BNB, TRX, XRP, DOGE, USDC)<br>• Присвоение персональных адресов для пополнения<br>• Быстрый вывод и переводы средств<br>• Внутренний обмен валют<br>• Прозрачная история транзакций<br><br>Нажмите кнопку ниже, чтобы открыть кошелек 👇`;
+  }
+}
+
+async function saveSettings() {
+  const projectName = document.getElementById("settings-project-name").value.trim();
+  const supportContact = document.getElementById("settings-support-contact").value.trim();
+  const welcomeText = document.getElementById("settings-welcome-text").value.trim();
+
+  try {
+    const res = await adminApi("/api/admin/settings", {
+      method: "POST",
+      body: JSON.stringify({
+        project_name: projectName,
+        support_contact: supportContact,
+        welcome_text: welcomeText
+      })
+    });
+
+    alert(res.message || "Настройки успешно сохранены!");
+    await loadAdminBranding();
+    updateWelcomePreview();
+  } catch (e) {
+    alert("Ошибка при сохранении настроек: " + e.message);
+  }
+}
+
+async function resetWelcomeSettings() {
+  if (!confirm("Сбросить текст приветствия к стандартному шаблону?")) return;
+  document.getElementById("settings-welcome-text").value = "";
+  updateWelcomePreview();
+  await saveSettings();
+}
+
 // ── NAV & MODALS ──
 function switchPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -686,6 +765,7 @@ function switchPage(name) {
   if (name === 'bcast') loadBroadcastHistory();
   if (name === 'dash') loadDashboard();
   if (name === 'hd') loadHdInfo();
+  if (name === 'settings') loadSettings();
 }
 
 function openModal(name) {

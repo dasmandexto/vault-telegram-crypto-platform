@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
+    PROJECT_NAME: str = os.getenv("PROJECT_NAME", "Vault")
     BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
     ADMIN_IDS_RAW: str = os.getenv("ADMIN_IDS", "")
     SECRET_KEY: str = os.getenv("SECRET_KEY", "vault-default-insecure-secret-key-32chars")

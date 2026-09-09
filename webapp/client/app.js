@@ -53,8 +53,36 @@ window.alert = function(msg) {
   showToast(String(msg || ""), false);
 };
 
+// ── CONFIG & BRANDING ──
+async function loadConfig() {
+  try {
+    const res = await fetch("/api/config");
+    if (res.ok) {
+      const cfg = await res.json();
+      if (cfg.project_name) {
+        document.title = `${cfg.project_name} — Crypto Wallet`;
+        const logoEl = document.getElementById("topbar-logo");
+        if (logoEl) {
+          logoEl.innerHTML = `${escapeHtml(cfg.project_name.toLowerCase())}<span>.</span>`;
+        }
+        const fallbackTitle = document.getElementById("fallback-wallet-title");
+        if (fallbackTitle) {
+          fallbackTitle.textContent = `⚡ ${cfg.project_name} Crypto Wallet`;
+        }
+      }
+      if (cfg.support_contact) {
+        window.SUPPORT_CONTACT = cfg.support_contact;
+      }
+    }
+  } catch (e) {
+    console.warn("Could not load /api/config:", e);
+  }
+}
+
 // ── INIT & AUTH ──
 async function init() {
+  await loadConfig();
+
   const initData = tg?.initData || "";
   const currentTgId = tg?.initDataUnsafe?.user?.id;
   const lastSavedTgId = localStorage.getItem("vault_auth_tg_id");
@@ -94,16 +122,16 @@ async function init() {
     if (!token) {
       document.body.innerHTML = `
         <div style="padding: 40px 20px; text-align: center; font-family: sans-serif; color: #fff; background: #0a0a0f; min-height: 100vh;">
-          <h2 style="color: #00e5a0; margin-bottom: 12px;">⚡ Vault Crypto Wallet</h2>
+          <h2 style="color: #00e5a0; margin-bottom: 12px;" id="fallback-wallet-title">⚡ Crypto Wallet</h2>
           <p style="color: #888; line-height: 1.6;">
-            Пожалуйста, откройте кошелек через Telegram-бота:<br>
-            <a href="https://t.me/Webkoshelbot" style="color: #00e5a0; font-weight: bold; text-decoration: none; font-size: 18px; display: inline-block; margin-top: 14px;">👉 @Webkoshelbot</a>
+            Пожалуйста, откройте кошелек через кнопку в вашем Telegram-боте.<br>
           </p>
           <p style="color: #555; font-size: 12px; margin-top: 24px;">
-            Каждый аккаунт привязывается к вашему Telegram ID.
+            Каждый аккаунт безопасно привязывается к вашему Telegram ID.
           </p>
         </div>
       `;
+      await loadConfig();
       return;
     }
   }

@@ -16,7 +16,9 @@ from core.database import (
     create_transaction,
     adjust_balance,
     get_user_transactions,
-    get_user_by_username
+    get_user_by_username,
+    get_project_name,
+    get_system_setting
 )
 from core.rates import get_exchange_rates, convert_to_usd
 from core.hd_wallet import derive_user_wallet
@@ -49,6 +51,15 @@ class P2PTransferModel(BaseModel):
 
 class RequestAddressModel(BaseModel):
     coin: str
+
+@router.get("/config")
+async def get_client_config():
+    project_name = await get_project_name()
+    support_contact = await get_system_setting("support_contact")
+    return {
+        "project_name": project_name,
+        "support_contact": support_contact or ""
+    }
 
 @router.get("/user/me")
 async def get_me(current_user: Dict[str, Any] = Depends(get_current_user)):

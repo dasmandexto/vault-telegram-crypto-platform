@@ -124,5 +124,45 @@ class TestVaultCore(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(convert_to_usd("USDT", 250.0, rates), 250.0)
         self.assertEqual(convert_to_usd("TON", 10.0, rates), 60.0)
 
+    async def test_system_settings_and_welcome_template(self):
+        # Проверяем значение имени проекта по умолчанию
+        p_name = await database.get_project_name()
+        self.assertTrue(len(p_name) > 0)
+
+        # Устанавливаем кастомное имя
+        await database.set_system_setting("project_name", "SuperVault")
+        self.assertEqual(await database.get_project_name(), "SuperVault")
+
+        # Проверяем шаблон приветствия со стандартным текстом
+        welcome_default = await database.get_welcome_text(first_name="Алексей", username="alex_crypto")
+        self.assertIn("Алексей", welcome_default)
+        self.assertIn("SuperVault", welcome_default)
+
+        # Устанавливаем кастомный шаблон приветствия
+        custom_tpl = "Привет, {name}! Добро пожаловать в {project_name} (@{username})."
+        await database.set_system_setting("welcome_text", custom_tpl)
+        welcome_custom = await database.get_welcome_text(first_name="Алексей", username="alex_crypto")
+        self.assertEqual(welcome_custom, "Привет, Алексей! Добро пожаловать в SuperVault (@@alex_crypto).")
+
+        # Сбрасываем кастомный шаблон
+        await database.delete_system_setting("welcome_text")
+        welcome_reset = await database.get_welcome_text(first_name="Алексей", username="alex_crypto")
+        self.assertIn("мультивалютный криптокошелек", welcome_reset)
+
+    def test_modular_system_discovery(self):
+        from core.modules import ModuleManager, BaseModule
+        mgr = ModuleManager(modules_dir="modules")
+        mgr.discover_modules()
+        
+        # Проверяем, что example модуль 'demo' успешно обнаружен и зарегистрирован
+        modules_info = mgr.get_all_modules_info()
+        mod_names = [m["name"] for m in modules_info]
+        self.assertIn("demo", mod_names)
+        
+        demo_mod = mgr.modules.get("demo")
+        self.assertIsNotNone(demo_mod)
+        self.assertIsNotNone(demo_mod.get_api_router())
+        self.assertIsNotNone(demo_mod.get_bot_router())
+
 if __name__ == "__main__":
     unittest.main()

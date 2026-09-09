@@ -24,6 +24,7 @@ from api.client import router as client_api_router
 from api.admin import router as admin_api_router
 from api.trading import router as trading_api_router
 from core.trading import run_trading_worker
+from core.modules import module_manager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("vault")
@@ -57,11 +58,12 @@ async def lifespan(app: FastAPI):
             # Регистрируем роутеры aiogram
             dp.include_router(client_bot_router)
             dp.include_router(admin_bot_router)
+            module_manager.include_bot_routers(dp)
 
             # Настраиваем Menu Button в Telegram
             if settings.WEBAPP_URL and not settings.WEBAPP_URL.startswith("http://localhost"):
                 try:
-                    menu_url = f"{settings.WEBAPP_URL}/?v=4" if not settings.WEBAPP_URL.endswith("/") else f"{settings.WEBAPP_URL}?v=4"
+                    menu_url = f"{settings.WEBAPP_URL}/?v=5" if not settings.WEBAPP_URL.endswith("/") else f"{settings.WEBAPP_URL}?v=5"
                     await b.set_chat_menu_button(
                         menu_button=MenuButtonWebApp(
                             text="⚡ Кошелёк",
@@ -86,9 +88,13 @@ async def lifespan(app: FastAPI):
     trading_task = asyncio.create_task(run_trading_worker())
     logger.info("Фоновый воркер торгового движка запущен.")
 
+    # 4. Инициализация и запуск активных модулей
+    await module_manager.start_modules(app, b, dp)
+
     yield
 
     # Завершение работы
+    await module_manager.stop_modules()
     if trading_task:
         trading_task.cancel()
         try:
@@ -133,6 +139,14 @@ app.include_router(auth_api_router)
 app.include_router(client_api_router)
 app.include_router(admin_api_router)
 app.include_router(trading_api_router)
+
+# Подключение модульных расширений (modules/)
+module_manager.discover_modules(BASE_DIR)
+module_manager.include_api_routers(app)
+
+@app.get("/api/modules")
+async def list_installed_modules():
+    return {"modules": module_manager.get_all_modules_info()}
 
 # Статические файлы (абсолютные пути)
 client_static_dir = os.path.join(BASE_DIR, "webapp", "client")
